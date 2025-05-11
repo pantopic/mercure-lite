@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  mercure-lite:
+    build:
+      context: ../..
+      dockerfile: cmd/standalone/Dockerfile
+      target: standalone
+    ports:
+      - 8001:8001
