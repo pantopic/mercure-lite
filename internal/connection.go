@@ -1,4 +1,4 @@
-package mercurelite
+package internal
 
 import (
 	"encoding/json"

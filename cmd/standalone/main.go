@@ -2,11 +2,11 @@ package main
 
 import (
 	"github.com/caarlos0/env/v11"
-	"github.com/pantopic/mercure-lite"
+	"github.com/pantopic/mercure-lite/internal"
 )
 
 func main() {
-	cfg := mercurelite.Config{
+	cfg := internal.Config{
 		LISTEN:             ":8001",
 		PUBLISHER_JWT_KEY:  "SECRET",
 		PUBLISHER_JWT_ALG:  "HS256",
@@ -20,6 +20,6 @@ func main() {
 	}); err != nil {
 		panic(err)
 	}
-	srv := mercurelite.NewServer(cfg)
+	srv := internal.NewServer(cfg)
 	srv.Start()
 }

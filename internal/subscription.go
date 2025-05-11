@@ -1,4 +1,4 @@
-package mercurelite
+package internal
 
 type subscription struct {
 	ID         string         `json:"id"`
