@@ -44,7 +44,7 @@ func (s *server) handleFastHTTP(ctx *fasthttp.RequestCtx) {
 	}
 	switch path {
 	case "/.well-known/mercure":
-		switch string(ctx.Method()) {
+		switch strings.ToUpper(string(ctx.Method())) {
 		case "POST":
 			s.publish(ctx)
 		case "OPTIONS":
@@ -55,7 +55,7 @@ func (s *server) handleFastHTTP(ctx *fasthttp.RequestCtx) {
 			ctx.SetStatusCode(405)
 		}
 	case "/.well-known/mercure/subscriptions":
-		switch string(ctx.Method()) {
+		switch strings.ToUpper(string(ctx.Method())) {
 		case "GET":
 			s.list(ctx)
 		default:
