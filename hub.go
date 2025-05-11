@@ -57,11 +57,7 @@ func (h *hub) Run() {
 						select {
 						case conn.send <- msg:
 						default:
-							for _, topic := range conn.topics {
-								delete(h.connections[topic], conn)
-							}
 							close(conn.send)
-							// go broadcast inactive subscription
 						}
 					}
 				}
