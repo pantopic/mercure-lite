@@ -113,7 +113,6 @@ func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 	conn.Broadcast(s.hub, true)
 	s.hub.Register(conn)
 	ctx.SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
-		log.Printf("Streamer Start: %s", conn.id)
 		defer s.hub.Unregister(conn)
 		defer conn.Broadcast(s.hub, false)
 		w.Write([]byte(":\n"))
