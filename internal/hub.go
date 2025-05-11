@@ -67,16 +67,6 @@ func (h *hub) Run() {
 	}
 }
 
-func (h *hub) Connections() map[*connection]bool {
-	m2 := make(map[*connection]bool)
-	h.mutex.RLock()
-	for _, m := range h.subscriptions {
-		maps.Copy(m2, m)
-	}
-	h.mutex.RUnlock()
-	return m2
-}
-
 func (h *hub) Broadcast(msg message) {
 	if msg.ID == "" {
 		msg.ID = uuidv7()
@@ -90,4 +80,14 @@ func (h *hub) Register(conn *connection) {
 
 func (h *hub) Unregister(conn *connection) {
 	h.unregister <- conn
+}
+
+func (h *hub) Connections() map[*connection]bool {
+	m2 := make(map[*connection]bool)
+	h.mutex.RLock()
+	for _, m := range h.subscriptions {
+		maps.Copy(m2, m)
+	}
+	h.mutex.RUnlock()
+	return m2
 }
