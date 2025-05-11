@@ -47,6 +47,8 @@ func (s *server) handleFastHTTP(ctx *fasthttp.RequestCtx) {
 		switch string(ctx.Method()) {
 		case "POST":
 			s.publish(ctx)
+		case "OPTIONS":
+			s.options(ctx)
 		case "GET":
 			s.subscribe(ctx)
 		default:
@@ -74,6 +76,12 @@ func (s *server) publish(ctx *fasthttp.RequestCtx) {
 	s.hub.Broadcast(msg)
 	ctx.SetContentType("application/ld+json")
 	ctx.Write([]byte(msg.ID))
+}
+
+func (s *server) options(ctx *fasthttp.RequestCtx) {
+	ctx.Response.Header.Set("Access-Control-Allow-Origin", s.cfg.CORS_ORIGINS)
+	ctx.Response.Header.Set("Access-Control-Allow-Headers", "Cache-Control")
+	ctx.Response.Header.Set("Access-Control-Allow-Credentials", "true")
 }
 
 func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
