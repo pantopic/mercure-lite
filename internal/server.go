@@ -25,15 +25,6 @@ func NewServer(cfg Config) *server {
 	return &server{cfg: cfg, hub: newHub()}
 }
 
-type Config struct {
-	LISTEN             string
-	PUBLISHER_JWT_KEY  string
-	PUBLISHER_JWT_ALG  string
-	SUBSCRIBER_JWT_KEY string
-	SUBSCRIBER_JWT_ALG string
-	CORS_ORIGINS       string
-}
-
 func (s *server) Start() {
 	go s.hub.Run()
 	log.Printf("Listening on %s", s.cfg.LISTEN)
