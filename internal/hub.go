@@ -57,7 +57,10 @@ func (h *hub) Run() {
 						select {
 						case conn.send <- msg:
 						default:
-							close(conn.send)
+							if !conn.closed {
+								conn.closed = true
+								close(conn.send)
+							}
 						}
 					}
 				}

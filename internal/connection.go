@@ -18,6 +18,7 @@ type connection struct {
 	id     string
 	send   chan message
 	topics []string
+	closed bool
 }
 
 func (c connection) Broadcast(h Hub, active bool) {
