@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"encoding/json"
 	"log"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/valyala/fasthttp"
 	"github.com/yosida95/uritemplate"
 )
@@ -70,9 +72,13 @@ func (s *server) publish(ctx *fasthttp.RequestCtx) {
 	args := ctx.PostArgs()
 	msg := newMessage(
 		string(args.Peek("type")),
-		argTopics(args),
+		s.verifySubscribe(ctx, argTopics(args)),
 		args.Peek("data"),
 	)
+	if len(msg.Topics) == 0 {
+		ctx.SetStatusCode(403)
+		return
+	}
 	s.hub.Broadcast(msg)
 	ctx.SetContentType("application/ld+json")
 	ctx.Write([]byte(msg.ID))
@@ -86,6 +92,7 @@ func (s *server) options(ctx *fasthttp.RequestCtx) {
 
 func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 	topics := argTopics(ctx.Request.URI().QueryArgs())
+	topics = s.verifySubscribe(ctx, topics)
 	if len(topics) < 1 {
 		return
 	}
@@ -143,6 +150,65 @@ func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 			}
 		}
 	}))
+}
+
+func (s *server) verifySubscribe(ctx *fasthttp.RequestCtx, topics []string) (res []string) {
+	claims := s.getTokenClaims(ctx, s.cfg.SUBSCRIBER_JWT_KEY)
+	if claims == nil {
+		return
+	}
+	for _, t := range topics {
+		if slices.Contains(claims.Mercure.Subscribe, t) {
+			res = append(res, t)
+		}
+	}
+	return
+}
+
+func (s *server) verifyPublish(ctx *fasthttp.RequestCtx, topics []string) (res []string) {
+	claims := s.getTokenClaims(ctx, s.cfg.PUBLISHER_JWT_KEY)
+	if claims == nil {
+		return
+	}
+	for _, t := range topics {
+		if slices.Contains(claims.Mercure.Subscribe, t) {
+			res = append(res, t)
+		}
+	}
+	return
+}
+
+type tokenClaims struct {
+	Mercure struct {
+		Publish   []string `json:"publish"`
+		Subscribe []string `json:"subscribe"`
+	} `json:"mercure"`
+	jwt.RegisteredClaims
+}
+
+func (s *server) getTokenClaims(ctx *fasthttp.RequestCtx, key string) *tokenClaims {
+	tokenStr := string(ctx.Request.Header.Peek("Authorization"))
+	if parts := strings.Split(tokenStr, " "); len(parts) == 2 {
+		tokenStr = parts[1]
+	} else {
+		tokenStr = string(ctx.Request.Header.Cookie("mercureAuthorization"))
+	}
+	if tokenStr == "" {
+		return nil
+	}
+	claims := new(tokenClaims)
+	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (any, error) {
+		return []byte(key), nil
+	})
+	if err != nil {
+		log.Println("Error parsing token: %s", err)
+		return nil
+	}
+	if !token.Valid {
+		log.Println("Invalid token")
+		return nil
+	}
+	return token.Claims.(*tokenClaims)
 }
 
 func (s *server) list(ctx *fasthttp.RequestCtx) {

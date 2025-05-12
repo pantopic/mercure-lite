@@ -5,6 +5,7 @@ go 1.24.0
 require (
 	github.com/caarlos0/env/v11 v11.3.1
 	github.com/gofrs/uuid/v5 v5.3.2
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/valyala/fasthttp v1.62.0
 	github.com/yosida95/uritemplate v2.0.0+incompatible
 )
