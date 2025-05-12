@@ -72,9 +72,6 @@ func (h *hub) Run() {
 }
 
 func (h *hub) Broadcast(msg message) {
-	if msg.ID == "" {
-		msg.ID = uuidv7()
-	}
 	h.broadcast <- msg
 }
 

@@ -27,8 +27,6 @@ var (
 )
 
 func TestIntegration(t *testing.T) {
-	pingPeriod = time.Second
-	ctx1, cancel1 := context.WithCancel(ctx)
 	if parity != "" {
 		target = parity
 	} else {
@@ -40,6 +38,8 @@ func TestIntegration(t *testing.T) {
 		}).Start()
 		time.Sleep(100 * time.Millisecond)
 	}
+	pingPeriod = 100 * time.Millisecond
+	ctx1, cancel1 := context.WithCancel(ctx)
 	ctx2, cancel2 := context.WithCancel(ctx)
 	subEvents := make(chan *sse.Event)
 	sseClientSubs := sse.NewClient(target + "/.well-known/mercure?topic=/.well-known/mercure/subscriptions{/topic}{/subscriber}")
