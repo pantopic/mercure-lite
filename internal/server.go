@@ -2,7 +2,11 @@ package internal
 
 import (
 	"bufio"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
+	"fmt"
 	"log"
 	"slices"
 	"strings"
@@ -72,7 +76,7 @@ func (s *server) publish(ctx *fasthttp.RequestCtx) {
 	args := ctx.PostArgs()
 	msg := newMessage(
 		string(args.Peek("type")),
-		s.verifySubscribe(ctx, argTopics(args)),
+		s.verifyPublish(ctx, argTopics(args)),
 		args.Peek("data"),
 	)
 	if len(msg.Topics) == 0 {
@@ -171,7 +175,7 @@ func (s *server) verifyPublish(ctx *fasthttp.RequestCtx, topics []string) (res [
 		return
 	}
 	for _, t := range topics {
-		if slices.Contains(claims.Mercure.Subscribe, t) {
+		if slices.Contains(claims.Mercure.Publish, t) {
 			res = append(res, t)
 		}
 	}
@@ -198,10 +202,18 @@ func (s *server) getTokenClaims(ctx *fasthttp.RequestCtx, key string) *tokenClai
 	}
 	claims := new(tokenClaims)
 	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (any, error) {
-		return []byte(key), nil
+		spkiBlock, _ := pem.Decode([]byte(key))
+		if spkiBlock == nil {
+			return nil, fmt.Errorf("Unable to decode %s", key)
+		}
+		pubInterface, err := x509.ParsePKIXPublicKey(spkiBlock.Bytes)
+		if err != nil {
+			return nil, err
+		}
+		return pubInterface.(*rsa.PublicKey), nil
 	})
 	if err != nil {
-		log.Println("Error parsing token: %s", err)
+		log.Printf("Error parsing token: %s", err)
 		return nil
 	}
 	if !token.Valid {

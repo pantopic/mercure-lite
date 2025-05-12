@@ -15,8 +15,7 @@ func main() {
 		CORS_ORIGINS:       "*",
 	}
 	if err := env.ParseWithOptions(&cfg, env.Options{
-		UseFieldNameByDefault: true,
-		Prefix:                "MERCURE_LITE_",
+		Prefix: "MERCURE_LITE_",
 	}); err != nil {
 		panic(err)
 	}
