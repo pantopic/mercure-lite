@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
@@ -13,20 +14,21 @@ import (
 
 	"github.com/r3labs/sse"
 	"github.com/stretchr/testify/assert"
-	// "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
 )
 
 var (
 	ctx    = context.Background()
+	client = &http.Client{Timeout: time.Second}
 	parity = os.Getenv("MERCURE_LITE_PARITY")
 	target = "http://localhost:8001"
 
-	err    error
-	client = &http.Client{Timeout: time.Second}
+	err error
 )
 
 func TestIntegration(t *testing.T) {
-	ctx, cancel := context.WithCancel(ctx)
+	pingPeriod = time.Second
+	ctx1, cancel1 := context.WithCancel(ctx)
 	if parity != "" {
 		target = parity
 	} else {
@@ -38,10 +40,34 @@ func TestIntegration(t *testing.T) {
 		}).Start()
 		time.Sleep(100 * time.Millisecond)
 	}
+	ctx2, cancel2 := context.WithCancel(ctx)
+	subEvents := make(chan *sse.Event)
+	sseClientSubs := sse.NewClient(target + "/.well-known/mercure?topic=/.well-known/mercure/subscriptions{/topic}{/subscriber}")
+	sseClientSubs.Headers["Authorization"] = "Bearer " + subJwt
+	sseClientSubs.SubscribeChanRawWithContext(ctx2, subEvents)
+	var active bool
+	var subEventCount int
+	go func() {
+		for {
+			select {
+			case e := <-subEvents:
+				var sub subscription
+				require.Nil(t, json.Unmarshal([]byte(e.Data), &sub))
+				log.Printf("%#v", sub)
+				active = sub.Active
+				if !active {
+					cancel2()
+				}
+				subEventCount++
+			case <-ctx2.Done():
+				return
+			}
+		}
+	}()
 	events := make(chan *sse.Event)
 	sseClient := sse.NewClient(target + "/.well-known/mercure?topic=test")
 	sseClient.Headers["Authorization"] = "Bearer " + subJwt
-	sseClient.SubscribeChanRaw(events)
+	sseClient.SubscribeChanRawWithContext(ctx1, events)
 	var id, data string
 	go func() {
 		for {
@@ -49,8 +75,8 @@ func TestIntegration(t *testing.T) {
 			case e := <-events:
 				id = string(e.ID)
 				data = string(e.Data)
-				cancel()
-			case <-ctx.Done():
+				cancel1()
+			case <-ctx1.Done():
 				return
 			}
 		}
@@ -65,16 +91,22 @@ func TestIntegration(t *testing.T) {
 	if err != nil {
 		log.Fatalf("Publish error: %v", err)
 	}
-	b, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Fatalf("Publish error: %v", err)
 	}
-	<-ctx.Done()
-	assert.Equal(t, id, string(b))
+	assert.Equal(t, 200, resp.StatusCode)
+	<-ctx1.Done()
+	assert.Equal(t, id, string(respBody))
 	assert.Equal(t, "test-data", data)
+	sseClient.Unsubscribe(events)
+	<-ctx2.Done()
+	assert.Equal(t, false, active)
+	assert.Equal(t, 2, subEventCount)
 }
 
-var subJwt = `eyJhbGciOiJSUzUxMiIsImNsYXNzaWQiOiJsajF6a3I2emc2c3Uza3U5bW0wdjgifQ.eyJpYXQiOjE3NDcwNTIwMzksImV4cCI6MTc0ODA1MjYzOSwibWVyY3VyZSI6eyJzdWJzY3JpYmUiOlsiLy53ZWxsLWtub3duL21lcmN1cmUvc3Vic2NyaXB0aW9uc3svdG9waWN9ey9zdWJzY3JpYmVyfSIsInRlc3QiXX19.QvI85aSkpnLpoyY3KyUsIfDCu7jLvNEf5c7kNdeDzMp838TOhRbC_WTP7e07P3Etf2ruSS3uaa7vBqR6EKcVpS_jXT6bIFvdHTmrZ-1IIORFKTG3FH4BENb5cSyyEMzuF1CJOSAyJnOT_A_pahL5qpZ74RoKSiyZ3HQi_g1f55UX-7VtcbjrPLA9b2RnXoboGB0TbQtRfRAgpOGc8WiK9TJc1VrOJP4pW2IlraOQhadKAUo_hpLWomGzTjHO_ZU63amzN9K0YrL9Yb15VANWOzEAA7C-saNk2N240HTbs_1FZwYhoif2MSWWLrm5k3JRKVizZh8xiye579OSPVObrQ`
+// Test JWT good for 250 years
+var subJwt = `eyJhbGciOiJSUzUxMiIsImNsYXNzaWQiOiJsajF6a3I2emc2c3Uza3U5bW0wdjgifQ.eyJpYXQiOjE3NDcwNTIwMzksImV4cCI6OTc0ODA1MjYzOSwibWVyY3VyZSI6eyJzdWJzY3JpYmUiOlsiLy53ZWxsLWtub3duL21lcmN1cmUvc3Vic2NyaXB0aW9uc3svdG9waWN9ey9zdWJzY3JpYmVyfSIsInRlc3QiXX19.BDTdmm8GkWmCiL3YiPAubyI-Le1wNWGtiXoPYsxFGidfsBC1PbxjEbgarIYsLN7E3POBllsofkJFwD-7CICC-NUt_TWDye4YMy5I75KNYaL2pdn70vm3UrT-zJ-YhKGjp5XkzR9jB4E7PoTj8t6GcEVJKD8V7zCkuLF91Qaxn5VGJ3jdUkK1bR0fzrv4FskTmP3mXQMhO761s9Ktv3Iom_lK23eK-Ta1RKEC7k5nTC29cmyy-vJlNY2bPexJ1iassPgLSRmgLK77MxTZ8jy5vuHcgXSnfYWIQl8M_Qm3p1VudWAgbatKB85M_oI9uks8hCpTI4HU3XcrMpzlmgAJVA`
 var subKey = `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqxkJ3xWZY2pz/WoFi15/
 QRrDQUdEb1VBHGy9dHg7Hue1Ss3Ghh3y9Pm+m9dXyqMF9ki7qp6EAcR37s25fo0d
@@ -85,7 +117,8 @@ xIdSnWVXwkw/08xEkIhMjvRzrPxoK8+453VGnn8UNUyDsLBxR9ln6U3xMpEOV0fO
 XwIDAQAB
 -----END PUBLIC KEY-----`
 
-var pubJwt = `eyJhbGciOiJSUzUxMiIsImNsYXNzaWQiOiJsajF6a3I2emc2c3Uza3U5bW0wdjgifQ.eyJpYXQiOjE3NDcwNTIwMzksImV4cCI6MTg0ODA1MjYzOSwibWVyY3VyZSI6eyJwdWJsaXNoIjpbInRlc3QiXX19.XUDSrwFPG6yaeYkdab-cao7sX7C_2o1OuF4HdmvNC1XjMoaehbVvnpiusfxDg5we2tj7kisEe4fGB7Vpg5RwmHfBrd0oj4BUAru11apPaG4nm2S_Ok0UpXHZtuHFgfj2i4UWUqmRtK4p-SlMlJ9qJg7meOG9DstYdatXNW5T-ZmJdZoZI9xjFBc6wxLg1hjTa9ilKxt6U228SCaXDQ0AI7N0x201NGohKfP-eDV1HkTxlZXyqeoWJvKKgRy44EWXXyEh0GyZArSp7UGstUF_J2cdiweS-M-bAx047LVfN0_TM18lo4Fq9gOPRvJBllBCwQjb7zOIOMM3VwltkELcRA`
+// Test JWT good for 250 years
+var pubJwt = `eyJhbGciOiJSUzUxMiIsImNsYXNzaWQiOiJsajF6a3I2emc2c3Uza3U5bW0wdjgifQ.eyJpYXQiOjE3NDcwNTIwMzksImV4cCI6OTg0ODA1MjYzOSwibWVyY3VyZSI6eyJwdWJsaXNoIjpbInRlc3QiXX19.H0qakrdoRVW6lqy6S_hWUFegLVPqUdoO_F32IUzAWXzysYo0RkK0FXIwDfd24RL-hPRfj0CibRnz3h6ZjkeRv_GQJK2YSkvZZoy64QTD6vGL5DgcErdqwaY8Ci7X-wdoLpnEyrvjopMLkbYOg9kfwe2aTGsVGNkVGdBrrwZOQMl2yrNTWKiygMVrf0bk91yC0P73SO58PPNHZRwSFnsQqHdUXmnb8-CFqG8nF7xv9ziqkmBiK8DgYoy4n6uQpI28shZKHYO9GDV_6c9v1q9nRyQ5Tw9SwlmZK4HaNMQSKHmKFeZXPK5gILwsEbIVSAK6GJyEGVOmdyHL-vjfxs9JaA`
 var pubKey = `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA14Hlkxs4Uw5J69IsmaMr
 VtyHTqBS1Z5ASMEpqs+6TV3CdcsDWp1wuUxzuxexcDCp/qZqZ3QqfKZgOoYDV2Yt
