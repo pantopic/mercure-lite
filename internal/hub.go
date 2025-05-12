@@ -47,8 +47,9 @@ func (h *hub) Run() {
 			for _, topic := range conn.topics {
 				delete(h.subscriptions[topic], conn)
 			}
-			close(conn.send)
 			h.mutex.Unlock()
+			conn.closed = true
+			close(conn.send)
 		case msg := <-h.broadcast:
 			h.mutex.RLock()
 			for _, t := range msg.Topics {
