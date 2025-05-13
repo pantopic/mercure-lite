@@ -1,0 +1,21 @@
+name: gocover
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: stable
+
+    - name: Update coverage badge
+      uses: ncruces/go-coverage-report@v0.1.4
