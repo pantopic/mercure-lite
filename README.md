@@ -19,14 +19,14 @@ __Mercure Lite__ does not implement:
 ## Roadmap
 
 - `v0.0.x` - Alpha
-  [ ] Add support for more (all) JWT key algorithms
-  [ ] Test more failure scenarios (ie. malformed keys, tokens, etc)
-  [ ] Implement `"*"` topic
+  - [ ] Add support for more (all) JWT key algorithms
+  - [ ] Test more failure scenarios (ie. malformed keys, tokens, etc)
+  - [ ] Implement `"*"` topic
 - `v0.x.x` - Beta
-  [ ] Add storage capabilities
-  [ ] Add support for `last-event-id`
+  - [ ] Add storage capabilities
+  - [ ] Add support for `last-event-id`
 - `v1.x.x` - General Availability
-  [ ] Distributed (multi-node) capabilities
+  - [ ] Distributed (multi-node) capabilities
 
 ## License
 
