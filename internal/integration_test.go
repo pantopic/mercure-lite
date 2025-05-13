@@ -47,7 +47,7 @@ func TestIntegration(t *testing.T) {
 		}()
 		time.Sleep(100 * time.Millisecond)
 	}
-	runIntegrationTest(t, ctx, true)
+	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, true)
 }
 
 func TestIntegrationMultiKey(t *testing.T) {
@@ -70,7 +70,30 @@ func TestIntegrationMultiKey(t *testing.T) {
 		}
 	}()
 	time.Sleep(100 * time.Millisecond)
-	runIntegrationTest(t, ctx, true)
+	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, true)
+}
+
+func TestIntegrationHS256(t *testing.T) {
+	if parity != "" {
+		return
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	time.Sleep(100 * time.Millisecond)
+	go func() {
+		if err := NewServer(Config{
+			LISTEN:             ":8001",
+			PUBLISHER_JWT_KEY:  pubKeyHS256,
+			PUBLISHER_JWT_ALG:  "HS256",
+			SUBSCRIBER_JWT_KEY: subKeyHS256,
+			SUBSCRIBER_JWT_ALG: "HS256",
+			CORS_ORIGINS:       "*",
+		}).Start(ctx); err != nil {
+			log.Fatal(err)
+		}
+	}()
+	time.Sleep(100 * time.Millisecond)
+	runIntegrationTest(t, ctx, pubJwtHS256, subJwtHS256, true)
 }
 
 func TestIntegrationJwks(t *testing.T) {
@@ -107,7 +130,7 @@ func TestIntegrationJwks(t *testing.T) {
 		}
 	}()
 	time.Sleep(100 * time.Millisecond)
-	runIntegrationTest(t, ctx, true)
+	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, true)
 	s.httpClient.Transport = RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		var body string
 		if r.URL.Path == "/pub" {
@@ -123,7 +146,7 @@ func TestIntegrationJwks(t *testing.T) {
 	})
 	clk.Add(time.Hour)
 	time.Sleep(100 * time.Millisecond)
-	runIntegrationTest(t, ctx, false)
+	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, false)
 }
 
 func TestIntegrationJwksMulti(t *testing.T) {
@@ -155,7 +178,7 @@ func TestIntegrationJwksMulti(t *testing.T) {
 		}
 	}()
 	time.Sleep(100 * time.Millisecond)
-	runIntegrationTest(t, ctx, true)
+	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, true)
 	s.httpClient.Transport = RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		var body = `{"keys":[` + junkJwk + `]}`
 		return &http.Response{
@@ -166,7 +189,7 @@ func TestIntegrationJwksMulti(t *testing.T) {
 	})
 	clk.Add(time.Hour)
 	time.Sleep(100 * time.Millisecond)
-	runIntegrationTest(t, ctx, false)
+	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, false)
 	s.httpClient.Transport = RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		var body = `{"keys":[` + invalidJwk + `]}`
 		return &http.Response{
@@ -177,10 +200,10 @@ func TestIntegrationJwksMulti(t *testing.T) {
 	})
 	clk.Add(time.Hour)
 	time.Sleep(100 * time.Millisecond)
-	runIntegrationTest(t, ctx, false)
+	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, false)
 }
 
-func runIntegrationTest(t *testing.T, ctx context.Context, success bool) {
+func runIntegrationTest(t *testing.T, ctx context.Context, pubJwt, subJwt string, success bool) {
 	oldPing := pingPeriod
 	pingPeriod = 100 * time.Millisecond
 	defer func() { pingPeriod = oldPing }()
@@ -188,7 +211,7 @@ func runIntegrationTest(t *testing.T, ctx context.Context, success bool) {
 	ctx2, cancel2 := context.WithCancel(ctx)
 	subEvents := make(chan *sse.Event)
 	sseClientSubs := sse.NewClient(target + "/.well-known/mercure?topic=/.well-known/mercure/subscriptions{/topic}{/subscriber}")
-	sseClientSubs.Headers["Authorization"] = "Bearer " + subJwtRS512
+	sseClientSubs.Headers["Authorization"] = "Bearer " + subJwt
 	sseClientSubs.SubscribeChanRawWithContext(ctx2, subEvents)
 	var active bool
 	var subEventCount int
@@ -211,7 +234,7 @@ func runIntegrationTest(t *testing.T, ctx context.Context, success bool) {
 	time.Sleep(100 * time.Millisecond)
 	events := make(chan *sse.Event)
 	sseClient := sse.NewClient(target + "/.well-known/mercure?topic=test")
-	sseClient.Headers["Authorization"] = "Bearer " + subJwtRS512
+	sseClient.Headers["Authorization"] = "Bearer " + subJwt
 	sseClient.SubscribeChanRawWithContext(ctx1, events)
 	var id, data string
 	go func() {
@@ -231,7 +254,7 @@ func runIntegrationTest(t *testing.T, ctx context.Context, success bool) {
 		"topic": {"test"},
 	}.Encode()))
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Add("Authorization", "Bearer "+pubJwtRS512)
+	req.Header.Add("Authorization", "Bearer "+pubJwt)
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Fatalf("Publish error: %v", err)
@@ -295,6 +318,12 @@ var pubJwk = `{
   "n": "14Hlkxs4Uw5J69IsmaMrVtyHTqBS1Z5ASMEpqs-6TV3CdcsDWp1wuUxzuxexcDCp_qZqZ3QqfKZgOoYDV2YtSUbVEA2jUPBFud0mWfwdkYeTztqX4MbK3eENLCfnfaAcIKdpXkrUDIL43DB5VZi8msp-UgbHsYmPrLvSPznLgjTnuG2WqgO-rQkRAJmy9YZqA1qG4SRrXr2kD7vVA6yZt3TaZWsBCy1186w5615k1vmb26Z9EksbSztd5JhS6Nth5EVMi5gl_7NoQiFJF1rShTWnWvuQFjqfK1CQwhDN-e8ERPb-agG-nVMI8SYJaiHRsOQFFCCD6dx7HYB75X0X9Q",
   "e": "AQAB"
 }`
+
+// Test JWTs good for 250 years
+var subJwtHS256 = `eyJhbGciOiJIUzI1NiIsImNsYXNzaWQiOiJsajF6a3I2emc2c3Uza3U5bW0wdjgifQ.eyJpYXQiOjE3NDcwNTIwMzksImV4cCI6OTc0ODA1MjYzOSwibWVyY3VyZSI6eyJzdWJzY3JpYmUiOlsiLy53ZWxsLWtub3duL21lcmN1cmUvc3Vic2NyaXB0aW9uc3svdG9waWN9ey9zdWJzY3JpYmVyfSIsInRlc3QiXX19.NVI1gYhY9S5EFs30KJyjX6rFsGNOMj9Ko7-AppgErvg`
+var subKeyHS256 = `512caae005bf589fb4d7728301205db273d55aa5030a2ab6e2acb2955063b6f1`
+var pubJwtHS256 = `eyJhbGciOiJIUzM4NCIsImNsYXNzaWQiOiJsajF6a3I2emc2c3Uza3U5bW0wdjgifQ.eyJpYXQiOjE3NDcwNTIwMzksImV4cCI6OTg0ODA1MjYzOSwibWVyY3VyZSI6eyJwdWJsaXNoIjpbInRlc3QiXX19.MsKRj7Xk6JxVXm7wYGKWavZfn7Xe2izD-209QBs_X5L3TUMnJ0h2UXbmmUHzeUhy`
+var pubKeyHS256 = `56500e38ddc0360f0525d7545ba708d1b873aedcc2c5caca1c8077f398b2d409`
 
 var junkJwk = `{
   "kty": "RSA",
