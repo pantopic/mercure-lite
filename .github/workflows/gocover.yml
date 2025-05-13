@@ -19,4 +19,3 @@ jobs:
 
     - name: Update coverage badge
       uses: ncruces/go-coverage-report@v0.1.4
-      working-directory: ./internal
