@@ -1,12 +1,10 @@
 # Mercure Lite
 
-A partially implementation of the Mercure protocol.
+A partial implementation of the Mercure protocol.
 
 [![Go Reference](https://godoc.org/github.com/pantopic/mercure-lite?status.svg)](https://godoc.org/github.com/pantopic/mercure-lite)
 [![Go Report Card](https://goreportcard.com/badge/github.com/pantopic/mercure-lite?4)](https://goreportcard.com/report/github.com/pantopic/mercure-lite)
 [![Go Coverage](https://github.com/pantopic/mercure-lite/wiki/coverage.svg)](https://raw.githack.com/wiki/pantopic/mercure-lite/coverage.html)
-
-## Why Partial?
 
 Mercure has a number of features that not everybody needs. The ability to express topic selectors as uri templates makes the protocol more flexible but also degrades performance. Some users of Mercure are paying a performance penalty for a feature they aren't using.
 
