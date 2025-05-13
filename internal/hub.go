@@ -1,12 +1,13 @@
 package internal
 
 import (
+	"context"
 	"maps"
 	"sync"
 )
 
 type Hub interface {
-	Run()
+	Run(context.Context)
 	Broadcast(message)
 	Register(*connection)
 	Unregister(*connection)
@@ -30,9 +31,11 @@ type hub struct {
 	unregister    chan *connection
 }
 
-func (h *hub) Run() {
+func (h *hub) Run(ctx context.Context) {
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case conn := <-h.register:
 			h.mutex.Lock()
 			for _, topic := range conn.topics {

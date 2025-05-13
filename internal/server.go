@@ -2,17 +2,25 @@ package internal
 
 import (
 	"bufio"
+	"bytes"
+	"context"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/lestrrat-go/httpcc"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/valyala/fasthttp"
 	"github.com/yosida95/uritemplate"
 )
@@ -23,20 +31,70 @@ var (
 )
 
 type server struct {
-	cfg Config
-	hub Hub
+	clock          clock.Clock
+	cfg            Config
+	pubKeys        []any
+	pubKeysJwks    []any
+	subJwksRefresh time.Duration
+	subKeys        []any
+	subKeysJwks    []any
+	pubJwksRefresh time.Duration
+	httpClient     *http.Client
+	mutex          sync.RWMutex
+	hub            Hub
 }
 
 func NewServer(cfg Config) *server {
-	return &server{cfg: cfg, hub: newHub()}
+	return &server{
+		clock:      clock.New(),
+		cfg:        cfg,
+		httpClient: &http.Client{Timeout: 5 * time.Second},
+		hub:        newHub(),
+	}
 }
 
-func (s *server) Start() {
-	go s.hub.Run()
-	log.Printf("Listening on %s", s.cfg.LISTEN)
-	if err := fasthttp.ListenAndServe(s.cfg.LISTEN, s.handleFastHTTP); err != nil {
-		log.Fatalf("Error in ListenAndServe: %s", err)
+func (s *server) allPubKeys() []any {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	return append(s.pubKeys, s.pubKeysJwks...)
+}
+
+func (s *server) allSubKeys() []any {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	return append(s.subKeys, s.subKeysJwks...)
+}
+
+func (s *server) Start(ctx context.Context) (err error) {
+	s.pubKeys = s.getJwtKeys(s.cfg.PUBLISHER_JWT_ALG, s.cfg.PUBLISHER_JWT_KEY)
+	s.pubKeysJwks, s.pubJwksRefresh = s.getJwksKeys(s.cfg.PUBLISHER_JWKS_URL)
+	if len(s.allPubKeys()) == 0 {
+		return fmt.Errorf("No publish keys available")
 	}
+	s.subKeys = s.getJwtKeys(s.cfg.SUBSCRIBER_JWT_ALG, s.cfg.SUBSCRIBER_JWT_KEY)
+	s.subKeysJwks, s.subJwksRefresh = s.getJwksKeys(s.cfg.SUBSCRIBER_JWKS_URL)
+	if len(s.allSubKeys()) == 0 {
+		return fmt.Errorf("No subscriber keys available")
+	}
+	s.startJwksRefresh(ctx)
+	go s.hub.Run(ctx)
+	done := make(chan bool)
+	server := fasthttp.Server{
+		Handler: s.handleFastHTTP,
+	}
+	go func() {
+		log.Printf("Listening on %s", s.cfg.LISTEN)
+		if err := server.ListenAndServe(s.cfg.LISTEN); err != nil {
+			log.Fatalf("Error in ListenAndServe: %s", err)
+			close(done)
+		}
+	}()
+	select {
+	case <-ctx.Done():
+		server.Shutdown()
+	case <-done:
+	}
+	return nil
 }
 
 func (s *server) handleFastHTTP(ctx *fasthttp.RequestCtx) {
@@ -157,7 +215,7 @@ func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 }
 
 func (s *server) verifySubscribe(ctx *fasthttp.RequestCtx, topics []string) (res []string) {
-	claims := s.getTokenClaims(ctx, s.cfg.SUBSCRIBER_JWT_KEY)
+	claims := s.getTokenClaims(ctx, s.allSubKeys())
 	if claims == nil {
 		return
 	}
@@ -170,7 +228,7 @@ func (s *server) verifySubscribe(ctx *fasthttp.RequestCtx, topics []string) (res
 }
 
 func (s *server) verifyPublish(ctx *fasthttp.RequestCtx, topics []string) (res []string) {
-	claims := s.getTokenClaims(ctx, s.cfg.PUBLISHER_JWT_KEY)
+	claims := s.getTokenClaims(ctx, s.allPubKeys())
 	if claims == nil {
 		return
 	}
@@ -190,7 +248,7 @@ type tokenClaims struct {
 	jwt.RegisteredClaims
 }
 
-func (s *server) getTokenClaims(ctx *fasthttp.RequestCtx, key string) *tokenClaims {
+func (s *server) getTokenClaims(ctx *fasthttp.RequestCtx, keys []any) *tokenClaims {
 	tokenStr := string(ctx.Request.Header.Peek("Authorization"))
 	if parts := strings.Split(tokenStr, " "); len(parts) == 2 {
 		tokenStr = parts[1]
@@ -201,23 +259,21 @@ func (s *server) getTokenClaims(ctx *fasthttp.RequestCtx, key string) *tokenClai
 		return nil
 	}
 	claims := new(tokenClaims)
-	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (any, error) {
-		spkiBlock, _ := pem.Decode([]byte(key))
-		if spkiBlock == nil {
-			return nil, fmt.Errorf("Unable to decode %s", key)
-		}
-		pubInterface, err := x509.ParsePKIXPublicKey(spkiBlock.Bytes)
+	var token *jwt.Token
+	var err error
+	for _, k := range keys {
+		token, err = jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (any, error) {
+			return k, nil
+		})
 		if err != nil {
-			return nil, err
+			continue
 		}
-		return pubInterface.(*rsa.PublicKey), nil
-	})
-	if err != nil {
-		log.Printf("Error parsing token: %s", err)
-		return nil
+		if token.Valid {
+			break
+		}
 	}
 	if !token.Valid {
-		log.Println("Invalid token")
+		log.Printf("Invalid token: %v", err)
 		return nil
 	}
 	return token.Claims.(*tokenClaims)
@@ -238,4 +294,122 @@ func (s *server) list(ctx *fasthttp.RequestCtx) {
 	}
 	b, _ := json.Marshal(list)
 	ctx.Write(b)
+}
+
+func (s *server) getJwtKeys(alg, key string) (keys []any) {
+	if strings.HasPrefix(alg, "HS") {
+		for _, k := range bytes.Split([]byte(key), []byte("\n")) {
+			keys = append(keys, k)
+		}
+	}
+	if strings.HasPrefix(alg, "RS") {
+		var block *pem.Block
+		rest := []byte(key)
+		var i int
+		for len(rest) > 0 {
+			i++
+			block, rest = pem.Decode(rest)
+			if block == nil {
+				log.Printf("Unable to decode %s block #%d", alg, i)
+				return
+			}
+			pubInterface, err := x509.ParsePKIXPublicKey(block.Bytes)
+			if err != nil {
+				log.Printf("Unable to parse key %s #%d", alg, i)
+				return
+			}
+			keys = append(keys, pubInterface.(*rsa.PublicKey))
+		}
+	}
+	return
+}
+
+func (s *server) getJwksKeys(url string) (keys []any, maxage time.Duration) {
+	if len(url) > 0 {
+		resp, err := s.httpClient.Get(url)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 200 {
+			log.Printf("JWKS URL returned %d", resp.StatusCode)
+			return
+		}
+		var jwks = map[string][]any{}
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		if err = json.Unmarshal(body, &jwks); err != nil {
+			log.Println(err)
+			return
+		}
+		for _, k := range jwks["keys"] {
+			kjson, err := json.Marshal(k)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			if err := jwk.ParseRawKey(kjson, &k); err != nil {
+				log.Println(err)
+				return
+			}
+			keys = append(keys, k)
+		}
+		maxage = 3600
+		directives, err := httpcc.ParseResponse(resp.Header.Get(`Cache-Control`))
+		if val, present := directives.MaxAge(); present {
+			maxage = time.Duration(max(int(val), 60))
+		}
+	}
+	return
+}
+
+func (s *server) startJwksRefresh(ctx context.Context) {
+	if s.subJwksRefresh > 0 {
+		go func() {
+			t := s.clock.Ticker(s.subJwksRefresh)
+			defer t.Stop()
+			select {
+			case <-t.C:
+				keys, maxage := s.getJwksKeys(s.cfg.SUBSCRIBER_JWKS_URL)
+				if maxage != s.subJwksRefresh && maxage > 0 {
+					s.subJwksRefresh = maxage
+					t.Reset(s.subJwksRefresh)
+				}
+				if len(keys) < 1 {
+					break
+				}
+				s.mutex.Lock()
+				s.subKeysJwks = keys
+				s.mutex.Unlock()
+			case <-ctx.Done():
+				return
+			}
+		}()
+	}
+	if s.pubJwksRefresh > 0 {
+		go func() {
+			t := s.clock.Ticker(s.pubJwksRefresh)
+			defer t.Stop()
+			select {
+			case <-t.C:
+				keys, maxage := s.getJwksKeys(s.cfg.PUBLISHER_JWKS_URL)
+				if maxage != s.pubJwksRefresh && maxage > 0 {
+					s.pubJwksRefresh = maxage
+					t.Reset(s.pubJwksRefresh)
+				}
+				if len(keys) < 1 {
+					break
+				}
+				s.mutex.Lock()
+				s.pubKeysJwks = keys
+				s.mutex.Unlock()
+			case <-ctx.Done():
+				return
+			}
+		}()
+	}
 }

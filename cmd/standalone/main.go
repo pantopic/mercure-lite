@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"github.com/caarlos0/env/v11"
 	"github.com/pantopic/mercure-lite/internal"
 )
 
 func main() {
+	ctx := context.Background()
 	cfg := internal.Config{
 		LISTEN:             ":8001",
 		PUBLISHER_JWT_KEY:  "SECRET",
@@ -20,5 +22,5 @@ func main() {
 		panic(err)
 	}
 	srv := internal.NewServer(cfg)
-	srv.Start()
+	srv.Start(ctx)
 }
