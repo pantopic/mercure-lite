@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -45,7 +46,7 @@ func TestIntegration(t *testing.T) {
 				log.Fatal(err)
 			}
 		}()
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 	}
 	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, true)
 }
@@ -56,7 +57,7 @@ func TestIntegrationMultiKey(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	go func() {
 		if err := NewServer(Config{
 			LISTEN:             ":8001",
@@ -68,8 +69,8 @@ func TestIntegrationMultiKey(t *testing.T) {
 		}).Start(ctx); err != nil {
 			log.Fatal(err)
 		}
+		time.Sleep(10 * time.Millisecond)
 	}()
-	time.Sleep(100 * time.Millisecond)
 	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, true)
 }
 
@@ -79,7 +80,7 @@ func TestIntegrationHS256(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	go func() {
 		if err := NewServer(Config{
 			LISTEN:             ":8001",
@@ -92,7 +93,7 @@ func TestIntegrationHS256(t *testing.T) {
 			log.Fatal(err)
 		}
 	}()
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	runIntegrationTest(t, ctx, pubJwtHS256, subJwtHS256, true)
 }
 
@@ -102,7 +103,7 @@ func TestIntegrationJwks(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	s := NewServer(Config{
 		LISTEN:              ":8001",
 		PUBLISHER_JWKS_URL:  "http://example.com/pub",
@@ -129,7 +130,7 @@ func TestIntegrationJwks(t *testing.T) {
 			log.Fatal(err)
 		}
 	}()
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, true)
 	s.httpClient.Transport = RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		var body string
@@ -145,7 +146,7 @@ func TestIntegrationJwks(t *testing.T) {
 		}, nil
 	})
 	clk.Add(time.Hour)
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, false)
 }
 
@@ -155,7 +156,7 @@ func TestIntegrationJwksMulti(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	s := NewServer(Config{
 		LISTEN:              ":8001",
 		PUBLISHER_JWKS_URL:  "http://example.com/pub",
@@ -177,7 +178,7 @@ func TestIntegrationJwksMulti(t *testing.T) {
 			log.Fatal(err)
 		}
 	}()
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, true)
 	s.httpClient.Transport = RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		var body = `{"keys":[` + junkJwk + `]}`
@@ -188,7 +189,7 @@ func TestIntegrationJwksMulti(t *testing.T) {
 		}, nil
 	})
 	clk.Add(time.Hour)
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, false)
 	s.httpClient.Transport = RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		var body = `{"keys":[` + invalidJwk + `]}`
@@ -199,22 +200,24 @@ func TestIntegrationJwksMulti(t *testing.T) {
 		}, nil
 	})
 	clk.Add(time.Hour)
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, false)
 }
 
 func runIntegrationTest(t *testing.T, ctx context.Context, pubJwt, subJwt string, success bool) {
 	oldPing := pingPeriod
-	pingPeriod = 100 * time.Millisecond
+	pingPeriod = 10 * time.Millisecond
 	defer func() { pingPeriod = oldPing }()
 	ctx1, cancel1 := context.WithCancel(ctx)
 	ctx2, cancel2 := context.WithCancel(ctx)
+	done1 := make(chan bool)
+	done2 := make(chan bool)
 	subEvents := make(chan *sse.Event)
 	sseClientSubs := sse.NewClient(target + "/.well-known/mercure?topic=/.well-known/mercure/subscriptions{/topic}{/subscriber}")
 	sseClientSubs.Headers["Authorization"] = "Bearer " + subJwt
 	sseClientSubs.SubscribeChanRawWithContext(ctx2, subEvents)
 	var active bool
-	var subEventCount int
+	var subEventCount = &atomic.Uint32{}
 	go func() {
 		for {
 			select {
@@ -225,13 +228,13 @@ func runIntegrationTest(t *testing.T, ctx context.Context, pubJwt, subJwt string
 				if !active {
 					cancel2()
 				}
-				subEventCount++
+				subEventCount.Add(1)
 			case <-ctx2.Done():
+				close(done2)
 				return
 			}
 		}
 	}()
-	time.Sleep(100 * time.Millisecond)
 	events := make(chan *sse.Event)
 	sseClient := sse.NewClient(target + "/.well-known/mercure?topic=test")
 	sseClient.Headers["Authorization"] = "Bearer " + subJwt
@@ -245,6 +248,7 @@ func runIntegrationTest(t *testing.T, ctx context.Context, pubJwt, subJwt string
 				data = string(e.Data)
 				cancel1()
 			case <-ctx1.Done():
+				close(done1)
 				return
 			}
 		}
@@ -265,13 +269,13 @@ func runIntegrationTest(t *testing.T, ctx context.Context, pubJwt, subJwt string
 	}
 	if success {
 		assert.Equal(t, 200, resp.StatusCode)
-		<-ctx1.Done()
+		<-done1
 		assert.Equal(t, id, string(respBody))
 		assert.Equal(t, "test-data", data)
 		sseClient.Unsubscribe(events)
-		<-ctx2.Done()
+		<-done2
 		assert.Equal(t, false, active)
-		assert.Equal(t, 2, subEventCount)
+		assert.EqualValues(t, 2, subEventCount.Load())
 	} else {
 		assert.Equal(t, 403, resp.StatusCode)
 		cancel1()
@@ -299,7 +303,6 @@ var subJwk = `{
   "e": "AQAB"
 }`
 
-// Test JWT good for 250 years
 var pubJwtRS512 = `eyJhbGciOiJSUzUxMiIsImNsYXNzaWQiOiJsajF6a3I2emc2c3Uza3U5bW0wdjgifQ.eyJpYXQiOjE3NDcwNTIwMzksImV4cCI6OTg0ODA1MjYzOSwibWVyY3VyZSI6eyJwdWJsaXNoIjpbInRlc3QiXX19.H0qakrdoRVW6lqy6S_hWUFegLVPqUdoO_F32IUzAWXzysYo0RkK0FXIwDfd24RL-hPRfj0CibRnz3h6ZjkeRv_GQJK2YSkvZZoy64QTD6vGL5DgcErdqwaY8Ci7X-wdoLpnEyrvjopMLkbYOg9kfwe2aTGsVGNkVGdBrrwZOQMl2yrNTWKiygMVrf0bk91yC0P73SO58PPNHZRwSFnsQqHdUXmnb8-CFqG8nF7xv9ziqkmBiK8DgYoy4n6uQpI28shZKHYO9GDV_6c9v1q9nRyQ5Tw9SwlmZK4HaNMQSKHmKFeZXPK5gILwsEbIVSAK6GJyEGVOmdyHL-vjfxs9JaA`
 var pubKeyRS512 = `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA14Hlkxs4Uw5J69IsmaMr
@@ -319,12 +322,6 @@ var pubJwk = `{
   "e": "AQAB"
 }`
 
-// Test JWTs good for 250 years
-var subJwtHS256 = `eyJhbGciOiJIUzI1NiIsImNsYXNzaWQiOiJsajF6a3I2emc2c3Uza3U5bW0wdjgifQ.eyJpYXQiOjE3NDcwNTIwMzksImV4cCI6OTc0ODA1MjYzOSwibWVyY3VyZSI6eyJzdWJzY3JpYmUiOlsiLy53ZWxsLWtub3duL21lcmN1cmUvc3Vic2NyaXB0aW9uc3svdG9waWN9ey9zdWJzY3JpYmVyfSIsInRlc3QiXX19.NVI1gYhY9S5EFs30KJyjX6rFsGNOMj9Ko7-AppgErvg`
-var subKeyHS256 = `512caae005bf589fb4d7728301205db273d55aa5030a2ab6e2acb2955063b6f1`
-var pubJwtHS256 = `eyJhbGciOiJIUzM4NCIsImNsYXNzaWQiOiJsajF6a3I2emc2c3Uza3U5bW0wdjgifQ.eyJpYXQiOjE3NDcwNTIwMzksImV4cCI6OTg0ODA1MjYzOSwibWVyY3VyZSI6eyJwdWJsaXNoIjpbInRlc3QiXX19.MsKRj7Xk6JxVXm7wYGKWavZfn7Xe2izD-209QBs_X5L3TUMnJ0h2UXbmmUHzeUhy`
-var pubKeyHS256 = `56500e38ddc0360f0525d7545ba708d1b873aedcc2c5caca1c8077f398b2d409`
-
 var junkJwk = `{
   "kty": "RSA",
   "use": "sig",
@@ -342,6 +339,11 @@ var invalidJwk = `{
   "n": "3j-ca362fmuvHCcUgRjcQfvfWLuFHlpq4QIcvE65weHTNLHJgY39mReqzqjXeyE5NDAf55m_Jhou8IE4ESi9tVueC953pmHz8TNtgCO1CYuttcmovdDA3rGWRARtLeSOK5HyEgyyQB3f6nuQmKNlqiQrTXISwkOlOqBNnXZOU2u3a-ZGdoG-rzIGncrJszh58k9ck5-LWkgLm13nHquUswS7fFqEL7YxbiKig_Ts3HJYVP2jhdNdiNTEGd73qY2ULyqM9k1xH_IrdSljQcwSsSdDiNV5rV1LdJbx2c_gCmyEnfbBHwfcHbYWXfOy4AMVeuJMPabM2cVJkkhSis1Yow",
   "e": "AQAB",
 }`
+
+var subJwtHS256 = `eyJhbGciOiJIUzI1NiIsImNsYXNzaWQiOiJsajF6a3I2emc2c3Uza3U5bW0wdjgifQ.eyJpYXQiOjE3NDcwNTIwMzksImV4cCI6OTc0ODA1MjYzOSwibWVyY3VyZSI6eyJzdWJzY3JpYmUiOlsiLy53ZWxsLWtub3duL21lcmN1cmUvc3Vic2NyaXB0aW9uc3svdG9waWN9ey9zdWJzY3JpYmVyfSIsInRlc3QiXX19.NVI1gYhY9S5EFs30KJyjX6rFsGNOMj9Ko7-AppgErvg`
+var subKeyHS256 = `512caae005bf589fb4d7728301205db273d55aa5030a2ab6e2acb2955063b6f1`
+var pubJwtHS256 = `eyJhbGciOiJIUzM4NCIsImNsYXNzaWQiOiJsajF6a3I2emc2c3Uza3U5bW0wdjgifQ.eyJpYXQiOjE3NDcwNTIwMzksImV4cCI6OTg0ODA1MjYzOSwibWVyY3VyZSI6eyJwdWJsaXNoIjpbInRlc3QiXX19.MsKRj7Xk6JxVXm7wYGKWavZfn7Xe2izD-209QBs_X5L3TUMnJ0h2UXbmmUHzeUhy`
+var pubKeyHS256 = `56500e38ddc0360f0525d7545ba708d1b873aedcc2c5caca1c8077f398b2d409`
 
 type RoundTripperFunc func(req *http.Request) (*http.Response, error)
 
