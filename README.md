@@ -8,7 +8,7 @@ A partial implementation of the Mercure protocol.
 
 Mercure has a number of features that not everybody needs. The ability to express topic selectors as uri templates makes the protocol more flexible but also prevents challenges related to performance and scalability. Some users of Mercure are paying a performance penalty for features that they aren't using. 
 
-This project aims to implement 80% of the Mercure protocol in 20% of the code compared with other implementations.
+This project aims to implement 80% of the Mercure protocol with 20% as many lines of code compared to other implementations. It should be equally stable and secure having better performance and fewer features.
 
 __Mercure Lite__ does not implement:
 
