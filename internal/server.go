@@ -59,6 +59,9 @@ func NewServer(cfg Config) *server {
 }
 
 func (s *server) Start(ctx context.Context) (err error) {
+	if s.ctx != nil {
+		return
+	}
 	s.ctx, s.ctxCancel = context.WithCancel(ctx)
 	s.pubKeys = s.getJwtKeys(s.cfg.PUBLISHER_JWT_ALG, s.cfg.PUBLISHER_JWT_KEY)
 	s.pubKeysJwks, s.pubJwksRefresh = s.getJwksKeys(s.cfg.PUBLISHER_JWKS_URL)
@@ -96,6 +99,7 @@ func (s *server) Stop() {
 	close(s.done)
 	s.server.Shutdown()
 	s.ctxCancel()
+	s.ctx = nil
 }
 
 func (s *server) handleFastHTTP(ctx *fasthttp.RequestCtx) {
