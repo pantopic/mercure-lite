@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
@@ -308,13 +309,27 @@ func (s *server) allSubKeys() []any {
 	return append(s.subKeys, s.subKeysJwks...)
 }
 
+var (
+	algECDSA  = []string{"ES256", "ES384", "ES512"}
+	algEdDSA  = []string{"EdDSA"}
+	algHMAC   = []string{"HS256", "HS384", "HS512"}
+	algRSA    = []string{"RS256", "RS384", "RS512"}
+	algRSAPSS = []string{"PS256", "PS384", "PS512"}
+)
+
 func (s *server) getJwtKeys(alg, key string) (keys []any) {
-	if strings.HasPrefix(alg, "HS") {
-		for _, k := range bytes.Split([]byte(key), []byte("\n")) {
+	if alg == "" {
+		return
+	}
+	if slices.Contains(algHMAC, alg) {
+		for k := range bytes.SplitSeq([]byte(key), []byte("\n")) {
 			keys = append(keys, k)
 		}
+		return
 	}
-	if strings.HasPrefix(alg, "RS") {
+	if slices.Contains(algECDSA, alg) ||
+		slices.Contains(algRSA, alg) ||
+		slices.Contains(algRSAPSS, alg) {
 		var block *pem.Block
 		rest := []byte(key)
 		var i int
@@ -330,9 +345,22 @@ func (s *server) getJwtKeys(alg, key string) (keys []any) {
 				log.Printf("Unable to parse key %s #%d", alg, i)
 				return
 			}
-			keys = append(keys, pubInterface.(*rsa.PublicKey))
+			switch alg[:2] {
+			case "ES":
+				keys = append(keys, pubInterface.(*ecdsa.PublicKey))
+			case "RS":
+				keys = append(keys, pubInterface.(*rsa.PublicKey))
+			case "PS":
+				keys = append(keys, pubInterface.(*rsa.PublicKey))
+			}
 		}
+		return
 	}
+	if slices.Contains(algEdDSA, alg) {
+		log.Println("EdDSA key alg not supported")
+		return
+	}
+	log.Printf("Unrecognized key alg: %s", alg)
 	return
 }
 

@@ -86,6 +86,44 @@ func TestIntegrationHS256(t *testing.T) {
 	runIntegrationTest(t, t.Context(), pubJwtHS256, subJwtHS256, true)
 }
 
+func TestIntegrationES256(t *testing.T) {
+	if parity != "" {
+		return
+	}
+	s := NewServer(Config{
+		LISTEN:             ":8001",
+		PUBLISHER_JWT_KEY:  pubKeyES256,
+		PUBLISHER_JWT_ALG:  "ES256",
+		SUBSCRIBER_JWT_KEY: subKeyES256,
+		SUBSCRIBER_JWT_ALG: "ES256",
+		CORS_ORIGINS:       "*",
+	})
+	if err := s.Start(t.Context()); err != nil {
+		log.Fatal(err)
+	}
+	defer s.Stop()
+	runIntegrationTest(t, t.Context(), pubJwtES256, subJwtES256, true)
+}
+
+func TestIntegrationPS384(t *testing.T) {
+	if parity != "" {
+		return
+	}
+	s := NewServer(Config{
+		LISTEN:             ":8001",
+		PUBLISHER_JWT_KEY:  pubKeyPS384,
+		PUBLISHER_JWT_ALG:  "PS384",
+		SUBSCRIBER_JWT_KEY: subKeyPS384,
+		SUBSCRIBER_JWT_ALG: "PS384",
+		CORS_ORIGINS:       "*",
+	})
+	if err := s.Start(t.Context()); err != nil {
+		log.Fatal(err)
+	}
+	defer s.Stop()
+	runIntegrationTest(t, t.Context(), pubJwtPS384, subJwtPS384, true)
+}
+
 func TestIntegrationJwks(t *testing.T) {
 	if parity != "" {
 		return
@@ -320,6 +358,38 @@ var subJwtHS256 = `eyJhbGciOiJIUzI1NiIsImNsYXNzaWQiOiJsajF6a3I2emc2c3Uza3U5bW0wd
 var subKeyHS256 = `512caae005bf589fb4d7728301205db273d55aa5030a2ab6e2acb2955063b6f1`
 var pubJwtHS256 = `eyJhbGciOiJIUzM4NCIsImNsYXNzaWQiOiJsajF6a3I2emc2c3Uza3U5bW0wdjgifQ.eyJpYXQiOjE3NDcwNTIwMzksImV4cCI6OTg0ODA1MjYzOSwibWVyY3VyZSI6eyJwdWJsaXNoIjpbInRlc3QiXX19.MsKRj7Xk6JxVXm7wYGKWavZfn7Xe2izD-209QBs_X5L3TUMnJ0h2UXbmmUHzeUhy`
 var pubKeyHS256 = `56500e38ddc0360f0525d7545ba708d1b873aedcc2c5caca1c8077f398b2d409`
+
+var subJwtES256 = `eyJhbGciOiJFUzI1NiIsImNsYXNzaWQiOiJsajF6a3I2emc2c3Uza3U5bW0wdjgifQ.eyJpYXQiOjE3NDcwNTIwMzksImV4cCI6OTc0ODA1MjYzOSwibWVyY3VyZSI6eyJzdWJzY3JpYmUiOlsiLy53ZWxsLWtub3duL21lcmN1cmUvc3Vic2NyaXB0aW9uc3svdG9waWN9ey9zdWJzY3JpYmVyfSIsInRlc3QiXX19.XNnYci4KggJOqQSAsxZZW2dpNtaLbgwgz4iYCAI0PolFkz5icYpp1fGoeD9i65p05kIkznvM58YayDnYIVJeag`
+var subKeyES256 = `-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEboT2CIjLhLJ4973CbWRaQifMkBTN
+MJvYIZu6lkxRaC2OnDksfPNtOo6uo/bL21WfTKq1iuFX3E1u79v7rid9kw==
+-----END PUBLIC KEY-----`
+var pubJwtES256 = `eyJhbGciOiJFUzI1NiIsImNsYXNzaWQiOiJsajF6a3I2emc2c3Uza3U5bW0wdjgifQ.eyJpYXQiOjE3NDcwNTIwMzksImV4cCI6OTg0ODA1MjYzOSwibWVyY3VyZSI6eyJwdWJsaXNoIjpbInRlc3QiXX19.9degmZt7YiMZJ6NBd_wwx3t3WfVGWaVk0iNQRupnW-5fMe8kdOnLQRYeOm2I-B_oOhIIqWh1FbQfjNMmipv_Ow`
+var pubKeyES256 = `-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE65drd/5TBxiKXh7DJ9O5QO7XxoAj
+tvEXLn4gaPxc+0fVnVr1gIBRL1dAxZ7CPp7JwnP+WHfc7rIZQAiwisohXw==
+-----END PUBLIC KEY-----`
+
+var subJwtPS384 = `eyJhbGciOiJQUzM4NCIsImNsYXNzaWQiOiJsajF6a3I2emc2c3Uza3U5bW0wdjgifQ.eyJpYXQiOjE3NDcwNTIwMzksImV4cCI6OTc0ODA1MjYzOSwibWVyY3VyZSI6eyJzdWJzY3JpYmUiOlsiLy53ZWxsLWtub3duL21lcmN1cmUvc3Vic2NyaXB0aW9uc3svdG9waWN9ey9zdWJzY3JpYmVyfSIsInRlc3QiXX19.e16nzp-so7ONZdnMIwlwGhDP9AHL4MI4DpDrve7q_1zTYDPq-ML2hZq08Zl60DJWfQ3V_kuq9CJl3QWvY40m4kJSKHBs_bqTZHRq3OdAD7lGo5U0RjwM-pQa0TocE5W62i8dmkbkyZ1GKyi1OMhRmF8Pj6sGg_tVURkRazadp1XpU-amxad8sNgqtCL-X0LWCuPjanGb0d6V2kH4_0wwh8Mr5cSCU0ydghiuuMW7nLLxtn0CdRz7vhuQwJ4nDPh7EwLfPvyyRyOBNTlkkWLomBX15pArytn4oJv3IC0ojhIfRq3Ly6P5G_4gxR4IBnn5iD96YygTM_y8r6Em8WU9jQ`
+var subKeyPS384 = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAocUHsPngKMeCIQ+xFmhP
+rCGbYb35U18HN9gSZBfG3wavSM7oZaSO2fxivcU3kC2vBj8+FhRdGr5ps0ZHvlvo
+umeKoWTgs3+/0Ie2AzXtU0UCeW1ActL/lh4nNmhG0tpIPpKnawg1gbjNuRBfQBd/
+fCeVmZJ2aKAfIcJCuL/khwgRIf+MQORVXG08vGiGPtcoabTrZkyWnqLNtoS+1uqS
+nI9W8Z+xVkIbrX6mwskJi+JVZJ2Y+dE5m+RCUK4stcc03VCoOXnNBZQ8wV49gA67
+kFkaxAXHJNCxhsrQFqvqIuXVAaiafq39AyKzs5HQkee5jO29c2nOx8qXFeqxNXlE
+TQIDAQAB
+-----END PUBLIC KEY-----`
+var pubJwtPS384 = `eyJhbGciOiJQUzM4NCIsImNsYXNzaWQiOiJsajF6a3I2emc2c3Uza3U5bW0wdjgifQ.eyJpYXQiOjE3NDcwNTIwMzksImV4cCI6OTg0ODA1MjYzOSwibWVyY3VyZSI6eyJwdWJsaXNoIjpbInRlc3QiXX19.S62Z7EtL0T_jjjXYLYtJPjUKKc-Ku9f6izIxYC0PDQyoS4NSxx2cMtM5U0I5XoPa7JnNjg8iBx5Dsyh82QIRdxV-V2BYdyKtp98IsPgXy12MsIfMFbyTfKS_CgdQ-9IHXFXgGnpwuCrvkJQpY3B4CSpG9h0Bic8Co3AD2Ge7vV21bvA3vCXLEeZCfClJbRO7gA1Ri5nzcZewAgtpnJVGLtiDWUayp2a5PMx5p6XZ6yrjnaNx8UVduIkpxJenzcBFI70aQXOw8bk5WWfvGRbYn4QrSt9xm3G7-RFXo0Jyhcyiom6nWMbDHqlLvDw85aBOrQWjR5smuBLkwQqclIkv1w`
+var pubKeyPS384 = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAplOlTxEiRNITSX7jL/t9
+JlbxN0xpKvwYKQESDMDwhgSQk3Hvte6VRiWUdUwe/+4PxsCdJ7lj2UJoOn7Xl8xm
+bvwma/xW/kZzI2zvjz+3HT4WYLZKEYRyNihf3UsqorvHvhXFaZ46IEbm6ksGs02K
+W/fBI1IJx8tSGiaTeIEHMiNAwMIdyKkMCXqIpmM492hbmEqDd/VpnxGW/qViDyrC
+kXGmjTIgMm7bP+Lek34IWBJRMmCfu6Tu0o3xqR7q2cXSbIODpY9H1u8iYF2aDB6q
+cgFE1w2NrckdFrrTQ03lkcgLMufUgUbFejH5FCHEmeRa+g4pWpFpjxt8gpc1s6Lr
+6wIDAQAB
+-----END PUBLIC KEY-----`
 
 type RoundTripperFunc func(req *http.Request) (*http.Response, error)
 
