@@ -404,6 +404,9 @@ func (s *server) getJwksKeys(url string) (keys []any, maxage time.Duration) {
 		}
 		maxage = 3600
 		directives, err := httpcc.ParseResponse(resp.Header.Get(`Cache-Control`))
+		if err != nil {
+			return
+		}
 		if val, present := directives.MaxAge(); present {
 			maxage = time.Duration(max(int(val), 60))
 		}
