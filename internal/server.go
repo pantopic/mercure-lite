@@ -31,41 +31,34 @@ var (
 )
 
 type server struct {
-	clock          clock.Clock
 	cfg            Config
+	clock          clock.Clock
+	ctx            context.Context
+	ctxCancel      context.CancelFunc
+	done           chan bool
+	httpClient     *http.Client
+	hub            Hub
+	mutex          sync.RWMutex
+	pubJwksRefresh time.Duration
 	pubKeys        []any
 	pubKeysJwks    []any
+	server         *fasthttp.Server
 	subJwksRefresh time.Duration
 	subKeys        []any
 	subKeysJwks    []any
-	pubJwksRefresh time.Duration
-	httpClient     *http.Client
-	mutex          sync.RWMutex
-	hub            Hub
 }
 
 func NewServer(cfg Config) *server {
 	return &server{
-		clock:      clock.New(),
 		cfg:        cfg,
+		clock:      clock.New(),
 		httpClient: &http.Client{Timeout: 5 * time.Second},
 		hub:        newHub(),
 	}
 }
 
-func (s *server) allPubKeys() []any {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-	return append(s.pubKeys, s.pubKeysJwks...)
-}
-
-func (s *server) allSubKeys() []any {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-	return append(s.subKeys, s.subKeysJwks...)
-}
-
 func (s *server) Start(ctx context.Context) (err error) {
+	s.ctx, s.ctxCancel = context.WithCancel(ctx)
 	s.pubKeys = s.getJwtKeys(s.cfg.PUBLISHER_JWT_ALG, s.cfg.PUBLISHER_JWT_KEY)
 	s.pubKeysJwks, s.pubJwksRefresh = s.getJwksKeys(s.cfg.PUBLISHER_JWKS_URL)
 	if len(s.allPubKeys()) == 0 {
@@ -76,25 +69,32 @@ func (s *server) Start(ctx context.Context) (err error) {
 	if len(s.allSubKeys()) == 0 {
 		return fmt.Errorf("No subscriber keys available")
 	}
-	s.startJwksRefresh(ctx)
-	go s.hub.Run(ctx)
-	done := make(chan bool)
-	server := fasthttp.Server{
+	s.done = make(chan bool)
+	s.startJwksRefresh()
+	go s.hub.Run(s.ctx)
+	s.server = &fasthttp.Server{
 		Handler: s.handleFastHTTP,
 	}
 	go func() {
 		log.Printf("Listening on %s", s.cfg.LISTEN)
-		if err := server.ListenAndServe(s.cfg.LISTEN); err != nil {
+		if err := s.server.ListenAndServe(s.cfg.LISTEN); err != nil {
 			log.Fatalf("Error in ListenAndServe: %s", err)
-			close(done)
+			s.Stop()
 		}
 	}()
-	select {
-	case <-ctx.Done():
-		server.Shutdown()
-	case <-done:
-	}
+	go func() {
+		select {
+		case <-ctx.Done():
+			s.Stop()
+		case <-s.done:
+		}
+	}()
 	return nil
+}
+func (s *server) Stop() {
+	close(s.done)
+	s.server.Shutdown()
+	s.ctxCancel()
 }
 
 func (s *server) handleFastHTTP(ctx *fasthttp.RequestCtx) {
@@ -296,6 +296,18 @@ func (s *server) list(ctx *fasthttp.RequestCtx) {
 	ctx.Write(b)
 }
 
+func (s *server) allPubKeys() []any {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	return append(s.pubKeys, s.pubKeysJwks...)
+}
+
+func (s *server) allSubKeys() []any {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	return append(s.subKeys, s.subKeysJwks...)
+}
+
 func (s *server) getJwtKeys(alg, key string) (keys []any) {
 	if strings.HasPrefix(alg, "HS") {
 		for _, k := range bytes.Split([]byte(key), []byte("\n")) {
@@ -367,7 +379,7 @@ func (s *server) getJwksKeys(url string) (keys []any, maxage time.Duration) {
 	return
 }
 
-func (s *server) startJwksRefresh(ctx context.Context) {
+func (s *server) startJwksRefresh() {
 	if s.subJwksRefresh > 0 {
 		go func() {
 			t := s.clock.Ticker(s.subJwksRefresh)
@@ -385,7 +397,7 @@ func (s *server) startJwksRefresh(ctx context.Context) {
 				s.mutex.Lock()
 				s.subKeysJwks = keys
 				s.mutex.Unlock()
-			case <-ctx.Done():
+			case <-s.done:
 				return
 			}
 		}()
@@ -407,7 +419,7 @@ func (s *server) startJwksRefresh(ctx context.Context) {
 				s.mutex.Lock()
 				s.pubKeysJwks = keys
 				s.mutex.Unlock()
-			case <-ctx.Done():
+			case <-s.done:
 				return
 			}
 		}()

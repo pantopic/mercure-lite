@@ -5,7 +5,7 @@ build:
 	@go build -ldflags="-s -w" -o _dist/standalone ./cmd/standalone
 
 test:
-	@go test ./internal -v
+	@go test ./internal -v -count=1 -race
 
 parity:
 	@PARITY_CHECK=true go test -v

@@ -6,7 +6,7 @@ A partial implementation of the Mercure protocol.
 [![Go Report Card](https://goreportcard.com/badge/github.com/pantopic/mercure-lite?4)](https://goreportcard.com/report/github.com/pantopic/mercure-lite)
 [![Go Coverage](https://github.com/pantopic/mercure-lite/wiki/coverage.svg)](https://raw.githack.com/wiki/pantopic/mercure-lite/coverage.html)
 
-Mercure has a number of features that not everybody needs. The ability to express topic selectors as uri templates makes the protocol more flexible but also prevents challenges related to performance and scalability. Some users of Mercure are paying a performance penalty for features that they aren't using. 
+Mercure has a number of features that not everybody needs. The ability to express topic selectors as uri templates makes the protocol more flexible but also presents performance and scalability challenges. Some users of Mercure are paying a performance penalty for features they don't need. 
 
 This project aims to implement 80% of the Mercure protocol with 20% as many lines of code compared to other implementations. It should be equally stable and secure having better performance and fewer features.
 

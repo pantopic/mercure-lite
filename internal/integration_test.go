@@ -29,81 +29,67 @@ var (
 )
 
 func TestIntegration(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
 	if parity != "" {
 		target = parity
 	} else {
-		go func() {
-			if err := NewServer(Config{
-				LISTEN:             ":8001",
-				PUBLISHER_JWT_KEY:  pubKeyRS512,
-				PUBLISHER_JWT_ALG:  "RS512",
-				SUBSCRIBER_JWT_KEY: subKeyRS512,
-				SUBSCRIBER_JWT_ALG: "RS512",
-				CORS_ORIGINS:       "*",
-			}).Start(ctx); err != nil {
-				log.Fatal(err)
-			}
-		}()
-		time.Sleep(10 * time.Millisecond)
+		s := NewServer(Config{
+			LISTEN:             ":8001",
+			PUBLISHER_JWT_KEY:  pubKeyRS512,
+			PUBLISHER_JWT_ALG:  "RS512",
+			SUBSCRIBER_JWT_KEY: subKeyRS512,
+			SUBSCRIBER_JWT_ALG: "RS512",
+			CORS_ORIGINS:       "*",
+		})
+		if err := s.Start(t.Context()); err != nil {
+			log.Fatal(err)
+		}
+		defer s.Stop()
 	}
-	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, true)
+	runIntegrationTest(t, t.Context(), pubJwtRS512, subJwtRS512, true)
 }
 
 func TestIntegrationMultiKey(t *testing.T) {
 	if parity != "" {
 		return
 	}
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	time.Sleep(10 * time.Millisecond)
-	go func() {
-		if err := NewServer(Config{
-			LISTEN:             ":8001",
-			PUBLISHER_JWT_KEY:  pubKeyRS512 + "\n" + subKeyRS512,
-			PUBLISHER_JWT_ALG:  "RS512",
-			SUBSCRIBER_JWT_KEY: pubKeyRS512 + "\n" + subKeyRS512,
-			SUBSCRIBER_JWT_ALG: "RS512",
-			CORS_ORIGINS:       "*",
-		}).Start(ctx); err != nil {
-			log.Fatal(err)
-		}
-		time.Sleep(10 * time.Millisecond)
-	}()
-	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, true)
+	s := NewServer(Config{
+		LISTEN:             ":8001",
+		PUBLISHER_JWT_KEY:  pubKeyRS512 + "\n" + subKeyRS512,
+		PUBLISHER_JWT_ALG:  "RS512",
+		SUBSCRIBER_JWT_KEY: pubKeyRS512 + "\n" + subKeyRS512,
+		SUBSCRIBER_JWT_ALG: "RS512",
+		CORS_ORIGINS:       "*",
+	})
+	if err := s.Start(t.Context()); err != nil {
+		log.Fatal(err)
+	}
+	defer s.Stop()
+	runIntegrationTest(t, t.Context(), pubJwtRS512, subJwtRS512, true)
 }
 
 func TestIntegrationHS256(t *testing.T) {
 	if parity != "" {
 		return
 	}
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	time.Sleep(10 * time.Millisecond)
-	go func() {
-		if err := NewServer(Config{
-			LISTEN:             ":8001",
-			PUBLISHER_JWT_KEY:  pubKeyHS256,
-			PUBLISHER_JWT_ALG:  "HS256",
-			SUBSCRIBER_JWT_KEY: subKeyHS256,
-			SUBSCRIBER_JWT_ALG: "HS256",
-			CORS_ORIGINS:       "*",
-		}).Start(ctx); err != nil {
-			log.Fatal(err)
-		}
-	}()
-	time.Sleep(10 * time.Millisecond)
-	runIntegrationTest(t, ctx, pubJwtHS256, subJwtHS256, true)
+	s := NewServer(Config{
+		LISTEN:             ":8001",
+		PUBLISHER_JWT_KEY:  pubKeyHS256,
+		PUBLISHER_JWT_ALG:  "HS256",
+		SUBSCRIBER_JWT_KEY: subKeyHS256,
+		SUBSCRIBER_JWT_ALG: "HS256",
+		CORS_ORIGINS:       "*",
+	})
+	if err := s.Start(t.Context()); err != nil {
+		log.Fatal(err)
+	}
+	defer s.Stop()
+	runIntegrationTest(t, t.Context(), pubJwtHS256, subJwtHS256, true)
 }
 
 func TestIntegrationJwks(t *testing.T) {
 	if parity != "" {
 		return
 	}
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	time.Sleep(10 * time.Millisecond)
 	s := NewServer(Config{
 		LISTEN:              ":8001",
 		PUBLISHER_JWKS_URL:  "http://example.com/pub",
@@ -125,13 +111,11 @@ func TestIntegrationJwks(t *testing.T) {
 			Header:     make(http.Header),
 		}, nil
 	})
-	go func() {
-		if err := s.Start(ctx); err != nil {
-			log.Fatal(err)
-		}
-	}()
-	time.Sleep(10 * time.Millisecond)
-	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, true)
+	if err := s.Start(t.Context()); err != nil {
+		log.Fatal(err)
+	}
+	defer s.Stop()
+	runIntegrationTest(t, t.Context(), pubJwtRS512, subJwtRS512, true)
 	s.httpClient.Transport = RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		var body string
 		if r.URL.Path == "/pub" {
@@ -146,17 +130,13 @@ func TestIntegrationJwks(t *testing.T) {
 		}, nil
 	})
 	clk.Add(time.Hour)
-	time.Sleep(10 * time.Millisecond)
-	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, false)
+	runIntegrationTest(t, t.Context(), pubJwtRS512, subJwtRS512, false)
 }
 
 func TestIntegrationJwksMulti(t *testing.T) {
 	if parity != "" {
 		return
 	}
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	time.Sleep(10 * time.Millisecond)
 	s := NewServer(Config{
 		LISTEN:              ":8001",
 		PUBLISHER_JWKS_URL:  "http://example.com/pub",
@@ -173,13 +153,11 @@ func TestIntegrationJwksMulti(t *testing.T) {
 			Header:     make(http.Header),
 		}, nil
 	})
-	go func() {
-		if err := s.Start(ctx); err != nil {
-			log.Fatal(err)
-		}
-	}()
-	time.Sleep(10 * time.Millisecond)
-	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, true)
+	if err := s.Start(t.Context()); err != nil {
+		log.Fatal(err)
+	}
+	defer s.Stop()
+	runIntegrationTest(t, t.Context(), pubJwtRS512, subJwtRS512, true)
 	s.httpClient.Transport = RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		var body = `{"keys":[` + junkJwk + `]}`
 		return &http.Response{
@@ -189,8 +167,7 @@ func TestIntegrationJwksMulti(t *testing.T) {
 		}, nil
 	})
 	clk.Add(time.Hour)
-	time.Sleep(10 * time.Millisecond)
-	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, false)
+	runIntegrationTest(t, t.Context(), pubJwtRS512, subJwtRS512, false)
 	s.httpClient.Transport = RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		var body = `{"keys":[` + invalidJwk + `]}`
 		return &http.Response{
@@ -200,8 +177,7 @@ func TestIntegrationJwksMulti(t *testing.T) {
 		}, nil
 	})
 	clk.Add(time.Hour)
-	time.Sleep(10 * time.Millisecond)
-	runIntegrationTest(t, ctx, pubJwtRS512, subJwtRS512, false)
+	runIntegrationTest(t, t.Context(), pubJwtRS512, subJwtRS512, false)
 }
 
 func runIntegrationTest(t *testing.T, ctx context.Context, pubJwt, subJwt string, success bool) {
