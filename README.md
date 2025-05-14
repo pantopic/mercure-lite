@@ -25,8 +25,8 @@ __Mercure Lite__ does not implement:
 - `v0.x.x` - Beta
   - [ ] Add storage capabilities
   - [ ] Add support for `last-event-id`
-- `v1.x.x` - General Availability
   - [ ] Distributed (multi-node) capabilities
+- `v1.x.x` - General Availability
 
 ## License
 

@@ -9,7 +9,10 @@ import (
 	"github.com/pantopic/mercure-lite"
 )
 
-type Config mercurelite.Config
+type (
+	Config    = mercurelite.Config
+	ConfigJWT = mercurelite.ConfigJWT
+)
 
 func uuidv7() string {
 	uuid, _ := uuid.NewV7()

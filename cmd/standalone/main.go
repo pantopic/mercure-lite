@@ -2,25 +2,33 @@ package main
 
 import (
 	"context"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/caarlos0/env/v11"
+
 	"github.com/pantopic/mercure-lite/internal"
 )
 
 func main() {
 	ctx := context.Background()
-	cfg := internal.Config{
-		LISTEN:             ":8001",
-		PUBLISHER_JWT_KEY:  "SECRET",
-		PUBLISHER_JWT_ALG:  "HS256",
-		SUBSCRIBER_JWT_KEY: "SECRET",
-		SUBSCRIBER_JWT_ALG: "HS256",
-		CORS_ORIGINS:       "*",
-	}
+	cfg := internal.Config{}
 	if err := env.ParseWithOptions(&cfg, env.Options{
 		Prefix: "MERCURE_LITE_",
 	}); err != nil {
 		panic(err)
 	}
 	srv := internal.NewServer(cfg)
-	srv.Start(ctx)
+	if err := srv.Start(ctx); err != nil {
+		log.Fatal(err)
+	}
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt)
+	signal.Notify(stop, syscall.SIGTERM)
+	<-stop
+
+	srv.Stop()
 }

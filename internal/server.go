@@ -63,13 +63,13 @@ func (s *server) Start(ctx context.Context) (err error) {
 		return
 	}
 	s.ctx, s.ctxCancel = context.WithCancel(ctx)
-	s.pubKeys = s.getJwtKeys(s.cfg.PUBLISHER_JWT_ALG, s.cfg.PUBLISHER_JWT_KEY)
-	s.pubKeysJwks, s.pubJwksRefresh = s.getJwksKeys(s.cfg.PUBLISHER_JWKS_URL)
+	s.pubKeys = s.getJwtKeys(s.cfg.PUBLISHER.JWT_ALG, s.cfg.PUBLISHER.JWT_KEY)
+	s.pubKeysJwks, s.pubJwksRefresh = s.getJwksKeys(s.cfg.PUBLISHER.JWKS_URL)
 	if len(s.allPubKeys()) == 0 {
 		return fmt.Errorf("No publish keys available")
 	}
-	s.subKeys = s.getJwtKeys(s.cfg.SUBSCRIBER_JWT_ALG, s.cfg.SUBSCRIBER_JWT_KEY)
-	s.subKeysJwks, s.subJwksRefresh = s.getJwksKeys(s.cfg.SUBSCRIBER_JWKS_URL)
+	s.subKeys = s.getJwtKeys(s.cfg.SUBSCRIBER.JWT_ALG, s.cfg.SUBSCRIBER.JWT_KEY)
+	s.subKeysJwks, s.subJwksRefresh = s.getJwksKeys(s.cfg.SUBSCRIBER.JWKS_URL)
 	if len(s.allSubKeys()) == 0 {
 		return fmt.Errorf("No subscriber keys available")
 	}
@@ -315,10 +315,11 @@ func (s *server) allSubKeys() []any {
 
 var (
 	algECDSA  = []string{"ES256", "ES384", "ES512"}
-	algEdDSA  = []string{"EdDSA"}
 	algHMAC   = []string{"HS256", "HS384", "HS512"}
 	algRSA    = []string{"RS256", "RS384", "RS512"}
 	algRSAPSS = []string{"PS256", "PS384", "PS512"}
+
+	algEdDSA = []string{"EdDSA"}
 )
 
 func (s *server) getJwtKeys(alg, key string) (keys []any) {
@@ -421,7 +422,7 @@ func (s *server) startJwksRefresh() {
 			defer t.Stop()
 			select {
 			case <-t.C:
-				keys, maxage := s.getJwksKeys(s.cfg.SUBSCRIBER_JWKS_URL)
+				keys, maxage := s.getJwksKeys(s.cfg.SUBSCRIBER.JWKS_URL)
 				if maxage != s.subJwksRefresh && maxage > 0 {
 					s.subJwksRefresh = maxage
 					t.Reset(s.subJwksRefresh)
@@ -443,7 +444,7 @@ func (s *server) startJwksRefresh() {
 			defer t.Stop()
 			select {
 			case <-t.C:
-				keys, maxage := s.getJwksKeys(s.cfg.PUBLISHER_JWKS_URL)
+				keys, maxage := s.getJwksKeys(s.cfg.PUBLISHER.JWKS_URL)
 				if maxage != s.pubJwksRefresh && maxage > 0 {
 					s.pubJwksRefresh = maxage
 					t.Reset(s.pubJwksRefresh)

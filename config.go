@@ -1,12 +1,37 @@
 package mercurelite
 
+// Config lists the environment variables available.
+// All environment variables are prefixed with MERCURE_LITE_
 type Config struct {
-	LISTEN              string `env:"LISTEN"`
-	PUBLISHER_JWKS_URL  string `env:"PUBLISHER_JWKS_URL"`
-	PUBLISHER_JWT_KEY   string `env:"PUBLISHER_JWT_KEY"`
-	PUBLISHER_JWT_ALG   string `env:"PUBLISHER_JWT_ALG"`
-	SUBSCRIBER_JWKS_URL string `env:"SUBSCRIBER_JWKS_URL"`
-	SUBSCRIBER_JWT_KEY  string `env:"SUBSCRIBER_JWT_KEY"`
-	SUBSCRIBER_JWT_ALG  string `env:"SUBSCRIBER_JWT_ALG"`
-	CORS_ORIGINS        string `env:"CORS_ORIGINS"`
+	// CORS_ORIGINS specifies valid origins for Cross Origin Resource Sharing.
+	CORS_ORIGINS string `env:"CORS_ORIGINS" envDefault:"*"`
+
+	// LISTEN specifies the listen address.
+	LISTEN string `env:"LISTEN" envDefault:":8000"`
+
+	// PUBLISHER specifies JWT verification config for publishers.
+	PUBLISHER ConfigJWT `env:"PUBLISHER"`
+
+	// SUBSCRIBER specifies JWT verification config for publishers.
+	SUBSCRIBER ConfigJWT `env:"SUBSCRIBER"`
+}
+
+// ConfigJWT specifies the JWT auth configuration for publishers and subscribers.
+type ConfigJWT struct {
+	// JWKS_URL specifies the JWKS URL to use for signature verification.
+	// See https://datatracker.ietf.org/doc/html/rfc7517
+	JWKS_URL string `env:"JWKS_URL" envDefault:""`
+
+	// JWT_KEY specifies the Key to use for JWT signature verification.
+	// For asymmetrics algorithsm like RSA this is typically a public key in PEM format.
+	// Multiple symmetric and asymmetric keys may be specified, newline delimited.
+	JWT_KEY string `env:"JWT_KEY" envDefault:"SECRET"`
+
+	// JWT_ALG specifies the Algorithm used by the publisher key.
+	// Supported algorithms:
+	//   ES256 ES384 ES512 (ECDSA - Elliptic Curve, Asymmetric)
+	//   HS256 HS384 HS512 (HMAC, Symmetric)
+	//   RS256 RS384 RS512 (RSA, Asymmetric)
+	//   PS256 PS384 PS512 (RSA-PSS, Asymmetric)
+	JWT_ALG string `env:"JWT_ALG" envDefault:"HS256"`
 }

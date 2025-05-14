@@ -34,42 +34,62 @@ func TestIntegration(t *testing.T) {
 	}
 	t.Run("base", func(t *testing.T) {
 		runIntegrationTest(t, testServer(Config{
-			PUBLISHER_JWT_KEY:  pubKeyRS512,
-			PUBLISHER_JWT_ALG:  "RS512",
-			SUBSCRIBER_JWT_KEY: subKeyRS512,
-			SUBSCRIBER_JWT_ALG: "RS512",
+			PUBLISHER: ConfigJWT{
+				JWT_KEY: pubKeyRS512,
+				JWT_ALG: "RS512",
+			},
+			SUBSCRIBER: ConfigJWT{
+				JWT_KEY: subKeyRS512,
+				JWT_ALG: "RS512",
+			},
 		}), pubJwtRS512, subJwtRS512, true).Stop()
 	})
 	t.Run("multi", func(t *testing.T) {
 		runIntegrationTest(t, testServer(Config{
-			PUBLISHER_JWT_KEY:  pubKeyRS512 + "\n" + subKeyRS512,
-			PUBLISHER_JWT_ALG:  "RS512",
-			SUBSCRIBER_JWT_KEY: pubKeyRS512 + "\n" + subKeyRS512,
-			SUBSCRIBER_JWT_ALG: "RS512",
+			PUBLISHER: ConfigJWT{
+				JWT_KEY: pubKeyRS512 + "\n" + subKeyRS512,
+				JWT_ALG: "RS512",
+			},
+			SUBSCRIBER: ConfigJWT{
+				JWT_KEY: pubKeyRS512 + "\n" + subKeyRS512,
+				JWT_ALG: "RS512",
+			},
 		}), pubJwtRS512, subJwtRS512, true).Stop()
 	})
 	t.Run("HS256", func(t *testing.T) {
 		runIntegrationTest(t, testServer(Config{
-			PUBLISHER_JWT_KEY:  pubKeyHS256,
-			PUBLISHER_JWT_ALG:  "HS256",
-			SUBSCRIBER_JWT_KEY: subKeyHS256,
-			SUBSCRIBER_JWT_ALG: "HS256",
+			PUBLISHER: ConfigJWT{
+				JWT_KEY: pubKeyHS256,
+				JWT_ALG: "HS256",
+			},
+			SUBSCRIBER: ConfigJWT{
+				JWT_KEY: subKeyHS256,
+				JWT_ALG: "HS256",
+			},
 		}), pubJwtHS256, subJwtHS256, true).Stop()
 	})
 	t.Run("ES256", func(t *testing.T) {
 		runIntegrationTest(t, testServer(Config{
-			PUBLISHER_JWT_KEY:  pubKeyES256,
-			PUBLISHER_JWT_ALG:  "ES256",
-			SUBSCRIBER_JWT_KEY: subKeyES256,
-			SUBSCRIBER_JWT_ALG: "ES256",
+			PUBLISHER: ConfigJWT{
+				JWT_KEY: pubKeyES256,
+				JWT_ALG: "ES256",
+			},
+			SUBSCRIBER: ConfigJWT{
+				JWT_KEY: subKeyES256,
+				JWT_ALG: "ES256",
+			},
 		}), pubJwtES256, subJwtES256, true).Stop()
 	})
 	t.Run("PS384", func(t *testing.T) {
 		runIntegrationTest(t, testServer(Config{
-			PUBLISHER_JWT_KEY:  pubKeyPS384,
-			PUBLISHER_JWT_ALG:  "PS384",
-			SUBSCRIBER_JWT_KEY: subKeyPS384,
-			SUBSCRIBER_JWT_ALG: "PS384",
+			PUBLISHER: ConfigJWT{
+				JWT_KEY: pubKeyPS384,
+				JWT_ALG: "PS384",
+			},
+			SUBSCRIBER: ConfigJWT{
+				JWT_KEY: subKeyPS384,
+				JWT_ALG: "PS384",
+			},
 		}), pubJwtPS384, subJwtPS384, true).Stop()
 	})
 }
@@ -79,8 +99,12 @@ func TestIntegrationJwks(t *testing.T) {
 		return
 	}
 	s := testServer(Config{
-		PUBLISHER_JWKS_URL:  "http://example.com/pub",
-		SUBSCRIBER_JWKS_URL: "http://example.com/sub",
+		PUBLISHER: ConfigJWT{
+			JWKS_URL: "http://example.com/pub",
+		},
+		SUBSCRIBER: ConfigJWT{
+			JWKS_URL: "http://example.com/sub",
+		},
 	})
 	clk := clock.NewMock()
 	s.clock = clk
@@ -120,8 +144,12 @@ func TestIntegrationJwksMulti(t *testing.T) {
 		return
 	}
 	s := testServer(Config{
-		PUBLISHER_JWKS_URL:  "http://example.com/pub",
-		SUBSCRIBER_JWKS_URL: "http://example.com/sub",
+		PUBLISHER: ConfigJWT{
+			JWKS_URL: "http://example.com/pub",
+		},
+		SUBSCRIBER: ConfigJWT{
+			JWKS_URL: "http://example.com/sub",
+		},
 	})
 	clk := clock.NewMock()
 	s.clock = clk
