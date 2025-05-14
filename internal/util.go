@@ -5,7 +5,11 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/valyala/fasthttp"
+
+	"github.com/pantopic/mercure-lite"
 )
+
+type Config mercurelite.Config
 
 func uuidv7() string {
 	uuid, _ := uuid.NewV7()

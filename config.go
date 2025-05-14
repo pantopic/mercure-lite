@@ -1,4 +1,4 @@
-package internal
+package mercurelite
 
 type Config struct {
 	LISTEN              string `env:"LISTEN"`
