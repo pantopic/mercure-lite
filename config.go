@@ -7,7 +7,7 @@ type Config struct {
 	CORS_ORIGINS string `env:"CORS_ORIGINS" envDefault:"*"`
 
 	// LISTEN specifies the listen address.
-	LISTEN string `env:"LISTEN" envDefault:":8000"`
+	LISTEN string `env:"LISTEN" envDefault:":8001"`
 
 	// PUBLISHER specifies JWT verification config for publishers.
 	PUBLISHER ConfigJWT `env:"PUBLISHER"`
