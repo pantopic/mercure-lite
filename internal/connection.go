@@ -21,7 +21,7 @@ type connection struct {
 	closed bool
 }
 
-func (c connection) Broadcast(h Hub, active bool) {
+func (c connection) Announce(h Hub, active bool) {
 	for _, topic := range c.topics {
 		b, _ := json.Marshal(c.toSubscription(topic, active))
 		h.Broadcast(newMessage(

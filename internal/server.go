@@ -174,11 +174,11 @@ func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 	ctx.Response.Header.Set("Access-Control-Allow-Headers", "Cache-Control")
 	ctx.Response.Header.Set("Access-Control-Allow-Credentials", "true")
 	conn := newConnection(topics)
-	conn.Broadcast(s.hub, true)
+	conn.Announce(s.hub, true)
 	s.hub.Register(conn)
 	ctx.SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
 		defer s.hub.Unregister(conn)
-		defer conn.Broadcast(s.hub, false)
+		defer conn.Announce(s.hub, false)
 		w.Write([]byte(":\n"))
 		if err := w.Flush(); err != nil {
 			return
