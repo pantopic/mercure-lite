@@ -10,10 +10,10 @@ type Config struct {
 	LISTEN string `env:"LISTEN" envDefault:":8001"`
 
 	// PUBLISHER specifies JWT verification config for publishers.
-	PUBLISHER ConfigJWT `env:"PUBLISHER"`
+	PUBLISHER ConfigJWT `envPrefix:"PUBLISHER_"`
 
 	// SUBSCRIBER specifies JWT verification config for subscribers.
-	SUBSCRIBER ConfigJWT `env:"SUBSCRIBER"`
+	SUBSCRIBER ConfigJWT `envPrefix:"SUBSCRIBER_"`
 }
 
 // ConfigJWT specifies the JWT auth configuration for publishers and subscribers.
