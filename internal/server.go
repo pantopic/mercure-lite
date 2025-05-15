@@ -228,8 +228,9 @@ func (s *server) verifyPublish(ctx *fasthttp.RequestCtx, topics []string) (res [
 	if claims == nil {
 		return
 	}
+	all := slices.Contains(claims.Mercure.Publish, "*")
 	for _, t := range topics {
-		if slices.Contains(claims.Mercure.Publish, t) {
+		if all || slices.Contains(claims.Mercure.Publish, t) {
 			res = append(res, t)
 		}
 	}
