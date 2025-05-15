@@ -12,11 +12,13 @@ type Config struct {
 	// PUBLISHER specifies JWT verification config for publishers.
 	PUBLISHER ConfigJWT `env:"PUBLISHER"`
 
-	// SUBSCRIBER specifies JWT verification config for publishers.
+	// SUBSCRIBER specifies JWT verification config for subscribers.
 	SUBSCRIBER ConfigJWT `env:"SUBSCRIBER"`
 }
 
 // ConfigJWT specifies the JWT auth configuration for publishers and subscribers.
+// Environment variables are prefixed with either PUBLISHER or SUBSCRIBER
+// i.e. MERCURE_LITE_PUBLISHER_JWT_KEY, MERCURE_LITE_SUBSCRIBER_JWKS_URL, etc.
 type ConfigJWT struct {
 	// JWKS_URL specifies the JWKS URL to use for signature verification.
 	// See https://datatracker.ietf.org/doc/html/rfc7517
