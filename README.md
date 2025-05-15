@@ -14,6 +14,7 @@ __Mercure Lite__ does not implement:
 
 - Integrated TLS Termination (Caddy)
 - URI Template Topic Selectors
+- The reserved `"*"` topic
 - Storage
 
 ## Roadmap
@@ -21,7 +22,6 @@ __Mercure Lite__ does not implement:
 - `v0.0.x` - Alpha
   - [X] Add support for more (all) JWT key algorithms
   - [ ] Test more failure scenarios (ie. malformed keys, tokens, etc)
-  - [ ] Implement `"*"` topic
 - `v0.x.x` - Beta
   - [ ] Add storage capabilities
   - [ ] Add support for `last-event-id`
