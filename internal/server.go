@@ -2,15 +2,9 @@ package internal
 
 import (
 	"bufio"
-	"bytes"
 	"context"
-	"crypto/ecdsa"
-	"crypto/rsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"slices"
@@ -19,9 +13,6 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/lestrrat-go/httpcc"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/valyala/fasthttp"
 	"github.com/yosida95/uritemplate"
 )
@@ -63,13 +54,13 @@ func (s *server) Start(ctx context.Context) (err error) {
 		return
 	}
 	s.ctx, s.ctxCancel = context.WithCancel(ctx)
-	s.pubKeys = s.getJwtKeys(s.cfg.PUBLISHER.JWT_ALG, s.cfg.PUBLISHER.JWT_KEY)
-	s.pubKeysJwks, s.pubJwksRefresh = s.getJwksKeys(s.cfg.PUBLISHER.JWKS_URL)
+	s.pubKeys = jwtKeys(s.cfg.PUBLISHER.JWT_ALG, s.cfg.PUBLISHER.JWT_KEY)
+	s.pubKeysJwks, s.pubJwksRefresh = jwksKeys(s.httpClient, s.cfg.PUBLISHER.JWKS_URL)
 	if len(s.allPubKeys()) == 0 {
 		return fmt.Errorf("No publish keys available")
 	}
-	s.subKeys = s.getJwtKeys(s.cfg.SUBSCRIBER.JWT_ALG, s.cfg.SUBSCRIBER.JWT_KEY)
-	s.subKeysJwks, s.subJwksRefresh = s.getJwksKeys(s.cfg.SUBSCRIBER.JWKS_URL)
+	s.subKeys = jwtKeys(s.cfg.SUBSCRIBER.JWT_ALG, s.cfg.SUBSCRIBER.JWT_KEY)
+	s.subKeysJwks, s.subJwksRefresh = jwksKeys(s.httpClient, s.cfg.SUBSCRIBER.JWKS_URL)
 	if len(s.allSubKeys()) == 0 {
 		return fmt.Errorf("No subscriber keys available")
 	}
@@ -220,7 +211,7 @@ func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 }
 
 func (s *server) verifySubscribe(ctx *fasthttp.RequestCtx, topics []string) (res []string) {
-	claims := s.getTokenClaims(ctx, s.allSubKeys())
+	claims := jwtTokenClaims(ctx, s.allSubKeys())
 	if claims == nil {
 		return
 	}
@@ -233,7 +224,7 @@ func (s *server) verifySubscribe(ctx *fasthttp.RequestCtx, topics []string) (res
 }
 
 func (s *server) verifyPublish(ctx *fasthttp.RequestCtx, topics []string) (res []string) {
-	claims := s.getTokenClaims(ctx, s.allPubKeys())
+	claims := jwtTokenClaims(ctx, s.allPubKeys())
 	if claims == nil {
 		return
 	}
@@ -243,45 +234,6 @@ func (s *server) verifyPublish(ctx *fasthttp.RequestCtx, topics []string) (res [
 		}
 	}
 	return
-}
-
-type tokenClaims struct {
-	Mercure struct {
-		Publish   []string `json:"publish"`
-		Subscribe []string `json:"subscribe"`
-	} `json:"mercure"`
-	jwt.RegisteredClaims
-}
-
-func (s *server) getTokenClaims(ctx *fasthttp.RequestCtx, keys []any) *tokenClaims {
-	tokenStr := string(ctx.Request.Header.Peek("Authorization"))
-	if parts := strings.Split(tokenStr, " "); len(parts) == 2 {
-		tokenStr = parts[1]
-	} else {
-		tokenStr = string(ctx.Request.Header.Cookie("mercureAuthorization"))
-	}
-	if tokenStr == "" {
-		return nil
-	}
-	claims := new(tokenClaims)
-	var token *jwt.Token
-	var err error
-	for _, k := range keys {
-		token, err = jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (any, error) {
-			return k, nil
-		})
-		if err != nil {
-			continue
-		}
-		if token.Valid {
-			break
-		}
-	}
-	if !token.Valid {
-		log.Printf("Invalid token: %v", err)
-		return nil
-	}
-	return token.Claims.(*tokenClaims)
 }
 
 func (s *server) list(ctx *fasthttp.RequestCtx) {
@@ -313,108 +265,6 @@ func (s *server) allSubKeys() []any {
 	return append(s.subKeys, s.subKeysJwks...)
 }
 
-var (
-	algECDSA  = []string{"ES256", "ES384", "ES512"}
-	algHMAC   = []string{"HS256", "HS384", "HS512"}
-	algRSA    = []string{"RS256", "RS384", "RS512"}
-	algRSAPSS = []string{"PS256", "PS384", "PS512"}
-
-	algEdDSA = []string{"EdDSA"}
-)
-
-func (s *server) getJwtKeys(alg, key string) (keys []any) {
-	if alg == "" {
-		return
-	}
-	if slices.Contains(algHMAC, alg) {
-		for k := range bytes.SplitSeq([]byte(key), []byte("\n")) {
-			keys = append(keys, k)
-		}
-		return
-	}
-	if slices.Contains(algECDSA, alg) ||
-		slices.Contains(algRSA, alg) ||
-		slices.Contains(algRSAPSS, alg) {
-		var block *pem.Block
-		rest := []byte(key)
-		var i int
-		for len(rest) > 0 {
-			i++
-			block, rest = pem.Decode(rest)
-			if block == nil {
-				log.Printf("Unable to decode %s block #%d", alg, i)
-				return
-			}
-			pubInterface, err := x509.ParsePKIXPublicKey(block.Bytes)
-			if err != nil {
-				log.Printf("Unable to parse key %s #%d", alg, i)
-				return
-			}
-			switch alg[:2] {
-			case "ES":
-				keys = append(keys, pubInterface.(*ecdsa.PublicKey))
-			case "RS":
-				keys = append(keys, pubInterface.(*rsa.PublicKey))
-			case "PS":
-				keys = append(keys, pubInterface.(*rsa.PublicKey))
-			}
-		}
-		return
-	}
-	if slices.Contains(algEdDSA, alg) {
-		log.Println("EdDSA key alg not supported")
-		return
-	}
-	log.Printf("Unrecognized key alg: %s", alg)
-	return
-}
-
-func (s *server) getJwksKeys(url string) (keys []any, maxage time.Duration) {
-	if len(url) > 0 {
-		resp, err := s.httpClient.Get(url)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != 200 {
-			log.Printf("JWKS URL returned %d", resp.StatusCode)
-			return
-		}
-		var jwks = map[string][]any{}
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		if err = json.Unmarshal(body, &jwks); err != nil {
-			log.Println(err)
-			return
-		}
-		for _, k := range jwks["keys"] {
-			kjson, err := json.Marshal(k)
-			if err != nil {
-				log.Println(err)
-				return
-			}
-			if err := jwk.ParseRawKey(kjson, &k); err != nil {
-				log.Println(err)
-				return
-			}
-			keys = append(keys, k)
-		}
-		maxage = 3600
-		directives, err := httpcc.ParseResponse(resp.Header.Get(`Cache-Control`))
-		if err != nil {
-			return
-		}
-		if val, present := directives.MaxAge(); present {
-			maxage = time.Duration(max(int(val), 60))
-		}
-	}
-	return
-}
-
 func (s *server) startJwksRefresh() {
 	if s.subJwksRefresh > 0 {
 		go func() {
@@ -422,7 +272,7 @@ func (s *server) startJwksRefresh() {
 			defer t.Stop()
 			select {
 			case <-t.C:
-				keys, maxage := s.getJwksKeys(s.cfg.SUBSCRIBER.JWKS_URL)
+				keys, maxage := jwksKeys(s.httpClient, s.cfg.SUBSCRIBER.JWKS_URL)
 				if maxage != s.subJwksRefresh && maxage > 0 {
 					s.subJwksRefresh = maxage
 					t.Reset(s.subJwksRefresh)
@@ -444,7 +294,7 @@ func (s *server) startJwksRefresh() {
 			defer t.Stop()
 			select {
 			case <-t.C:
-				keys, maxage := s.getJwksKeys(s.cfg.PUBLISHER.JWKS_URL)
+				keys, maxage := jwksKeys(s.httpClient, s.cfg.PUBLISHER.JWKS_URL)
 				if maxage != s.pubJwksRefresh && maxage > 0 {
 					s.pubJwksRefresh = maxage
 					t.Reset(s.pubJwksRefresh)
