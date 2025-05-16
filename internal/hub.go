@@ -8,27 +8,28 @@ import (
 
 type Hub interface {
 	Run(context.Context)
-	Broadcast(message)
 	Register(*connection)
 	Unregister(*connection)
+	Broadcast(message)
 	Connections() map[*connection]bool
 }
 
 func newHub() *hub {
 	return &hub{
 		subscriptions: make(map[string]map[*connection]bool),
-		broadcast:     make(chan message),
 		register:      make(chan *connection),
 		unregister:    make(chan *connection),
+		broadcast:     make(chan message),
 	}
 }
 
 type hub struct {
-	mutex         sync.RWMutex
 	subscriptions map[string]map[*connection]bool
-	broadcast     chan message
 	register      chan *connection
 	unregister    chan *connection
+	broadcast     chan message
+
+	mutex sync.RWMutex
 }
 
 func (h *hub) Run(ctx context.Context) {

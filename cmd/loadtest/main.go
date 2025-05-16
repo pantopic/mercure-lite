@@ -21,10 +21,10 @@ var (
 	ctx    = context.Background()
 	client = &http.Client{Timeout: time.Second}
 	target = flag.String("target", "http://localhost:8001", "Target")
+	parity = flag.Bool("parity", false, "Parity target")
 	subs   = flag.Int("s", 256, "Number of concurrent subscribers")
 	pubs   = flag.Int("c", 16, "Number of concurrent publishers")
 	msgs   = flag.Int("n", 10000, "Number of requests")
-	parity = flag.Bool("parity", false, "Parity")
 
 	pubKeyHS256 = `512caae005bf589fb4d7728301205db273d55aa5030a2ab6e2acb2955063b6f1`
 	subKeyHS256 = `56500e38ddc0360f0525d7545ba708d1b873aedcc2c5caca1c8077f398b2d409`

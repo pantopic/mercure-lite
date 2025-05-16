@@ -5,9 +5,14 @@ services:
       dockerfile: cmd/standalone/Dockerfile
       target: standalone
     environment:
+      MERCURE_LITE_TARGET: :8001
       MERCURE_LITE_PUBLISHER_JWT_KEY: 512caae005bf589fb4d7728301205db273d55aa5030a2ab6e2acb2955063b6f1
       MERCURE_LITE_PUBLISHER_JWT_ALG: HS256
       MERCURE_LITE_SUBSCRIBER_JWT_KEY: 56500e38ddc0360f0525d7545ba708d1b873aedcc2c5caca1c8077f398b2d409
       MERCURE_LITE_SUBSCRIBER_JWT_ALG: HS256
     ports:
       - 8001:8001
+    deploy:
+      resources:
+        limits:
+          memory: 500M
