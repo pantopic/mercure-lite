@@ -22,5 +22,4 @@ jobs:
 
     - name: Update coverage badge
       uses: ncruces/go-coverage-report@v0.1.4
-      with:
-        coverage-file: coverage.out
+      coverage-file: coverage.out
