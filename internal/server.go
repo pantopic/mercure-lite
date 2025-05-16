@@ -85,8 +85,10 @@ func (s *server) Start(ctx context.Context) (err error) {
 	}()
 	return nil
 }
+
 func (s *server) Stop() {
 	close(s.done)
+	s.server.Shutdown()
 	s.ctxCancel()
 	s.ctx = nil
 }

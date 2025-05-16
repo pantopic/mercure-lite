@@ -106,6 +106,7 @@ func TestIntegrationJwks(t *testing.T) {
 			JWKS_URL: "http://example.com/sub",
 		},
 	})
+	defer s.Stop()
 	clk := clock.NewMock()
 	s.clock = clk
 	s.httpClient.Transport = RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
@@ -136,7 +137,7 @@ func TestIntegrationJwks(t *testing.T) {
 		}, nil
 	})
 	clk.Add(time.Hour)
-	runIntegrationTest(t, s, pubJwtRS512, subJwtRS512, false).Stop()
+	runIntegrationTest(t, s, pubJwtRS512, subJwtRS512, false)
 }
 
 func TestIntegrationJwksMulti(t *testing.T) {
@@ -151,6 +152,7 @@ func TestIntegrationJwksMulti(t *testing.T) {
 			JWKS_URL: "http://example.com/sub",
 		},
 	})
+	defer s.Stop()
 	clk := clock.NewMock()
 	s.clock = clk
 	s.httpClient.Transport = RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
@@ -181,7 +183,7 @@ func TestIntegrationJwksMulti(t *testing.T) {
 		}, nil
 	})
 	clk.Add(time.Hour)
-	runIntegrationTest(t, s, pubJwtRS512, subJwtRS512, false).Stop()
+	runIntegrationTest(t, s, pubJwtRS512, subJwtRS512, false)
 }
 
 func testServer(cfg Config) *server {
@@ -205,6 +207,7 @@ func runIntegrationTest(t *testing.T, s *server, pubJwt, subJwt string, success 
 	sseClientSubs := sse.NewClient(target + "/.well-known/mercure?topic=/.well-known/mercure/subscriptions{/topic}{/subscriber}")
 	sseClientSubs.Headers["Authorization"] = "Bearer " + subJwt
 	sseClientSubs.SubscribeChanRawWithContext(ctx2, subEvents)
+	time.Sleep(10 * time.Millisecond)
 	var active bool
 	var subEventCount = &atomic.Uint32{}
 	go func() {
@@ -228,6 +231,7 @@ func runIntegrationTest(t *testing.T, s *server, pubJwt, subJwt string, success 
 	sseClient := sse.NewClient(target + "/.well-known/mercure?topic=test")
 	sseClient.Headers["Authorization"] = "Bearer " + subJwt
 	sseClient.SubscribeChanRawWithContext(ctx1, events)
+	time.Sleep(10 * time.Millisecond)
 	var id, data string
 	go func() {
 		for {
@@ -271,6 +275,62 @@ func runIntegrationTest(t *testing.T, s *server, pubJwt, subJwt string, success 
 		cancel2()
 	}
 	return s
+}
+
+func TestApi(t *testing.T) {
+	if parity != "" {
+		return
+	}
+	s := testServer(Config{
+		PUBLISHER: ConfigJWT{
+			JWT_KEY: pubKeyRS512,
+			JWT_ALG: "RS512",
+		},
+		SUBSCRIBER: ConfigJWT{
+			JWT_KEY: subKeyRS512,
+			JWT_ALG: "RS512",
+		},
+	})
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	if err := s.Start(ctx); err != nil {
+		log.Fatal(err)
+	}
+	for range 10 {
+		events := make(chan *sse.Event)
+		sseClient := sse.NewClient(target + "/.well-known/mercure?topic=test")
+		sseClient.Headers["Authorization"] = "Bearer " + subJwtRS512
+		sseClient.SubscribeChanRawWithContext(ctx, events)
+		go func() {
+			defer close(events)
+			for {
+				select {
+				case <-events:
+				case <-ctx.Done():
+					sseClient.Unsubscribe(events)
+					return
+				}
+			}
+		}()
+	}
+	t.Run("GET", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", target+"/.well-known/mercure/subscriptions", nil)
+		req.Header.Add("Authorization", "Bearer "+subJwtRS512)
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Fatalf("Publish error: %v", err)
+		}
+		defer resp.Body.Close()
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Fatalf("Publish error: %v", err)
+		}
+		var data = map[string]any{}
+		err = json.Unmarshal(respBody, &data)
+		require.Nil(t, err)
+		assert.Equal(t, 200, resp.StatusCode)
+		assert.Equal(t, 10, len(data["subscriptions"].([]any)))
+	})
 }
 
 // Test JWTs good for 250 years
