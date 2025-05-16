@@ -18,7 +18,7 @@ jobs:
         go-version: stable
 
     - name: Cover
-      run: go test ./... -coverpkg github.com/pantopic/mercure-lite/internal -coverprofile coverage.out
+      run: go test ./internal -coverprofile coverage.out
 
     - name: Update coverage badge
       uses: ncruces/go-coverage-report@v0.1.4
