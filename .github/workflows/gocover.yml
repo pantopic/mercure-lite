@@ -21,5 +21,6 @@ jobs:
       run: go test ./internal -coverprofile coverage.out
 
     - name: Update coverage badge
-      uses: ncruces/go-coverage-report@v0.1.4
-      coverage-file: coverage.out
+      uses: ncruces/go-coverage-report@v0.3.0
+      with:
+        coverage-file: coverage.out
