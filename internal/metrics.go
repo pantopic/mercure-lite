@@ -1,0 +1,124 @@
+package internal
+
+import (
+	"context"
+	"log"
+	"net/http"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+type metrics struct {
+	ctx    context.Context
+	listen string
+	server *http.Server
+
+	connections_active     prometheus.Gauge
+	connections_total      prometheus.Counter
+	connections_terminated prometheus.Counter
+	subscriptions_active   prometheus.Gauge
+	subscriptions_total    prometheus.Counter
+	messages_published     prometheus.Counter
+	messages_sent          prometheus.Counter
+}
+
+func NewMetrics(listen string) *metrics {
+	return &metrics{listen: listen}
+}
+
+func (m *metrics) Start(ctx context.Context) {
+	if m == nil || m.listen == "" {
+		return
+	}
+	log.Printf("Starting metrics on %s", m.listen)
+	m.server = &http.Server{
+		Addr:    m.listen,
+		Handler: promhttp.Handler(),
+	}
+	m.init()
+	go func() {
+		log.Fatal(m.server.ListenAndServe())
+	}()
+	go func() {
+		select {
+		case <-ctx.Done():
+			m.Stop()
+		}
+	}()
+}
+
+func (m *metrics) Stop() {
+	if m != nil {
+		m.server.Shutdown(m.ctx)
+	}
+}
+func (m *metrics) Connect() {
+	if m != nil {
+		m.connections_total.Inc()
+		m.connections_active.Inc()
+	}
+}
+func (m *metrics) Disconnect() {
+	if m != nil {
+		m.connections_active.Dec()
+	}
+}
+func (m *metrics) Terminate() {
+	if m != nil {
+		m.connections_terminated.Inc()
+	}
+}
+func (m *metrics) Subscribe(n int) {
+	if m != nil {
+		m.subscriptions_total.Add(float64(n))
+		m.subscriptions_active.Add(float64(n))
+	}
+}
+func (m *metrics) Unsubscribe(n int) {
+	if m != nil {
+		m.subscriptions_active.Sub(float64(n))
+	}
+}
+func (m *metrics) Publish() {
+	if m != nil {
+		m.messages_published.Inc()
+	}
+}
+func (m *metrics) Send() {
+	if m != nil {
+		m.messages_sent.Inc()
+	}
+}
+
+func (m *metrics) init() {
+	m.connections_active = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "mercure_lite_connections_active",
+		Help: "Number of active connections",
+	})
+	m.connections_total = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "mercure_lite_connections_total",
+		Help: "Total number of connections created",
+	})
+	m.connections_terminated = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "mercure_lite_connections_terminated",
+		Help: "Total number of connections terminated",
+	})
+	m.subscriptions_active = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "mercure_lite_subscriptions_active",
+		Help: "Number of active subsriptions",
+	})
+	m.subscriptions_total = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "mercure_lite_subscriptions_total",
+		Help: "Total number of subscriptions created",
+	})
+	m.messages_published = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "mercure_lite_messages_published",
+		Help: "Total number of messages published",
+	})
+	m.messages_sent = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "mercure_lite_messages_sent",
+		Help: "Total number of messages sent",
+	})
+}

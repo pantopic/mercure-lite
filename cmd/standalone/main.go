@@ -20,6 +20,7 @@ func main() {
 	}); err != nil {
 		panic(err)
 	}
+
 	srv := internal.NewServer(cfg)
 	if err := srv.Start(ctx); err != nil {
 		log.Fatal(err)

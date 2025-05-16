@@ -1,6 +1,6 @@
 # Mercure Lite
 
-A partial implementation of the Mercure protocol.
+A partial implementation of the [Mercure protocol](https://www.ietf.org/archive/id/draft-dunglas-mercure-07.html).
 
 [![Go Reference](https://godoc.org/github.com/pantopic/mercure-lite?status.svg)](https://godoc.org/github.com/pantopic/mercure-lite)
 [![Go Report Card](https://goreportcard.com/badge/github.com/pantopic/mercure-lite?4)](https://goreportcard.com/report/github.com/pantopic/mercure-lite)
@@ -14,8 +14,7 @@ __Mercure Lite__ does not implement:
 
 - Integrated TLS Termination (Caddy)
 - URI Template Topic Selectors
-- The reserved `"*"` topic
-- Storage
+- The reserved `"*"` topic for subscriptions
 
 ## Roadmap
 
@@ -30,4 +29,4 @@ __Mercure Lite__ does not implement:
 
 ## License
 
-This is a ground-up implementation of the Mercure protocol licensed under Apache 2.0
+This is a ground-up implementation of a Mercure protocol hub licensed under Apache 2.0

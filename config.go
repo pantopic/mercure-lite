@@ -14,6 +14,10 @@ type Config struct {
 
 	// SUBSCRIBER specifies JWT verification config for subscribers.
 	SUBSCRIBER ConfigJWT `envPrefix:"SUBSCRIBER_"`
+
+	// METRICS specifies listen interface for prometheus metrics.
+	// i.e. http://localhost:9090/metrics
+	METRICS string `env:"METRICS" envDefault:":9090"`
 }
 
 // ConfigJWT specifies the JWT auth configuration for publishers and subscribers.

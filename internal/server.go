@@ -30,6 +30,7 @@ type server struct {
 	done           chan bool
 	httpClient     *http.Client
 	hub            Hub
+	metrics        *metrics
 	mutex          sync.RWMutex
 	pubJwksRefresh time.Duration
 	pubKeys        []any
@@ -41,11 +42,16 @@ type server struct {
 }
 
 func NewServer(cfg Config) *server {
+	var m *metrics
+	if len(cfg.METRICS) > 0 {
+		m = NewMetrics(cfg.METRICS)
+	}
 	return &server{
 		cfg:        cfg,
 		clock:      clock.New(),
 		httpClient: &http.Client{Timeout: 5 * time.Second},
-		hub:        newHub(),
+		metrics:    m,
+		hub:        newHub(m),
 	}
 }
 
@@ -71,7 +77,7 @@ func (s *server) Start(ctx context.Context) (err error) {
 		Handler: s.handleFastHTTP,
 	}
 	go func() {
-		log.Printf("Listening on %s", s.cfg.LISTEN)
+		log.Printf("Starting server on %s", s.cfg.LISTEN)
 		if err := s.server.ListenAndServe(s.cfg.LISTEN); err != nil {
 			log.Fatalf("Error in ListenAndServe: %s", err)
 		}
@@ -83,12 +89,14 @@ func (s *server) Start(ctx context.Context) (err error) {
 		case <-s.done:
 		}
 	}()
+	s.metrics.Start(ctx)
 	return nil
 }
 
 func (s *server) Stop() {
 	close(s.done)
 	s.server.Shutdown()
+	s.metrics.Stop()
 	s.ctxCancel()
 	s.ctx = nil
 }
@@ -140,6 +148,9 @@ func (s *server) publish(ctx *fasthttp.RequestCtx) {
 	s.hub.Broadcast(msg)
 	ctx.SetContentType("application/ld+json")
 	ctx.Write([]byte(msg.ID))
+	if s.metrics != nil {
+		s.metrics.Publish()
+	}
 }
 
 func (s *server) options(ctx *fasthttp.RequestCtx) {
@@ -179,6 +190,12 @@ func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 	ctx.SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
 		defer s.hub.Unregister(conn)
 		defer conn.Announce(s.hub, false)
+		defer func() {
+			if s.metrics != nil {
+				s.metrics.Disconnect()
+				s.metrics.Unsubscribe(len(conn.topics))
+			}
+		}()
 		w.Write([]byte(":\n"))
 		if err := w.Flush(); err != nil {
 			return
@@ -200,6 +217,9 @@ func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 					return
 				}
 				last = msg.ID
+				if s.metrics != nil {
+					s.metrics.Send()
+				}
 			case <-pinger.C:
 				w.Write([]byte(":\n"))
 				if err := w.Flush(); err != nil {
@@ -208,6 +228,10 @@ func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 			}
 		}
 	}))
+	if s.metrics != nil {
+		s.metrics.Connect()
+		s.metrics.Subscribe(len(conn.topics))
+	}
 }
 
 func (s *server) verifySubscribe(ctx *fasthttp.RequestCtx, topics []string) (res []string) {

@@ -14,22 +14,24 @@ type Hub interface {
 	Connections() map[*connection]bool
 }
 
-func newHub() *hub {
-	return &hub{
-		subscriptions: make(map[string]map[*connection]bool),
-		register:      make(chan *connection),
-		unregister:    make(chan *connection),
-		broadcast:     make(chan message),
-	}
-}
-
 type hub struct {
+	metrics       *metrics
 	subscriptions map[string]map[*connection]bool
 	register      chan *connection
 	unregister    chan *connection
 	broadcast     chan message
 
 	mutex sync.RWMutex
+}
+
+func newHub(m *metrics) *hub {
+	return &hub{
+		metrics:       m,
+		subscriptions: make(map[string]map[*connection]bool),
+		register:      make(chan *connection),
+		unregister:    make(chan *connection),
+		broadcast:     make(chan message),
+	}
 }
 
 func (h *hub) Run(ctx context.Context) {
@@ -65,6 +67,9 @@ func (h *hub) Run(ctx context.Context) {
 							if !conn.closed {
 								conn.closed = true
 								close(conn.send)
+								if h.metrics != nil {
+									h.metrics.Terminate()
+								}
 							}
 						}
 					}
