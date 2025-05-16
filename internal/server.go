@@ -74,7 +74,6 @@ func (s *server) Start(ctx context.Context) (err error) {
 		log.Printf("Listening on %s", s.cfg.LISTEN)
 		if err := s.server.ListenAndServe(s.cfg.LISTEN); err != nil {
 			log.Fatalf("Error in ListenAndServe: %s", err)
-			s.Stop()
 		}
 	}()
 	go func() {
@@ -88,7 +87,6 @@ func (s *server) Start(ctx context.Context) (err error) {
 }
 func (s *server) Stop() {
 	close(s.done)
-	s.server.Shutdown()
 	s.ctxCancel()
 	s.ctx = nil
 }
