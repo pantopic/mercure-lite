@@ -7,8 +7,14 @@ build:
 test:
 	@go test ./internal -v -count=1 -race
 
+loadtest:
+	@cd cmd/loadtest && go run *.go
+
 parity:
-	@PARITY_CHECK=true go test -v
+	@cd cmd/loadtest && go run *.go -parity
+
+parity-target:
+	@cd cmd/loadtest && docker compose up --build
 
 bench:
 	@go test -bench=. -run=_ -v
