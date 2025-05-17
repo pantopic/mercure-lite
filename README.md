@@ -42,6 +42,7 @@ See [cmd/loadtest](cmd/loadtest/main.go) for specifics
 
 - `v0.0.x` - Alpha
   - [X] Add support for more (all) JWT key algorithms
+  - [ ] Close connections made with tokens that expire while connection is open
   - [ ] Test more failure scenarios (ie. malformed keys, tokens, etc)
 - `v0.x.x` - Beta
   - [ ] Add storage capabilities
