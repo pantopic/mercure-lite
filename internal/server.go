@@ -155,13 +155,13 @@ func (s *server) publish(ctx *fasthttp.RequestCtx) {
 
 func (s *server) options(ctx *fasthttp.RequestCtx) {
 	ctx.Response.Header.Set("Access-Control-Allow-Origin", s.cfg.CORS_ORIGINS)
-	ctx.Response.Header.Set("Access-Control-Allow-Headers", "Cache-Control")
+	ctx.Response.Header.Set("Access-Control-Allow-Headers", "Authorization")
 	ctx.Response.Header.Set("Access-Control-Allow-Credentials", "true")
 }
 
 func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 	topics := argTopics(ctx.Request.URI().QueryArgs())
-	topics = s.verifySubscribe(ctx, topics)
+	topics, jwtExpires := s.verifySubscribe(ctx, topics)
 	if len(topics) < 1 {
 		return
 	}
@@ -176,7 +176,7 @@ func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 	ctx.Response.Header.Set("Connection", "keep-alive")
 	ctx.Response.Header.Set("Transfer-Encoding", "chunked")
 	ctx.Response.Header.Set("Access-Control-Allow-Origin", s.cfg.CORS_ORIGINS)
-	ctx.Response.Header.Set("Access-Control-Allow-Headers", "Cache-Control")
+	ctx.Response.Header.Set("Access-Control-Allow-Headers", "Authorization")
 	ctx.Response.Header.Set("Access-Control-Allow-Credentials", "true")
 	conn := newConnection(topics)
 	conn.Announce(s.hub, true)
@@ -190,8 +190,8 @@ func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 		if err := w.Flush(); err != nil {
 			return
 		}
-		pinger := time.NewTicker(pingPeriod)
-		defer pinger.Stop()
+		ping := time.NewTicker(pingPeriod)
+		defer ping.Stop()
 		var last string
 		for {
 			select {
@@ -208,11 +208,13 @@ func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 				}
 				last = msg.ID
 				s.metrics.Send()
-			case <-pinger.C:
+			case <-ping.C:
 				w.Write([]byte(":\n"))
 				if err := w.Flush(); err != nil {
 					return
 				}
+			case <-s.clock.After(jwtExpires):
+				return
 			}
 		}
 	}))
@@ -233,11 +235,12 @@ func (s *server) normalize(topics []string) ([]string, error) {
 	return topics, nil
 }
 
-func (s *server) verifySubscribe(ctx *fasthttp.RequestCtx, topics []string) (res []string) {
+func (s *server) verifySubscribe(ctx *fasthttp.RequestCtx, topics []string) (res []string, jwtExpires time.Duration) {
 	claims := jwtTokenClaims(ctx, s.allSubKeys())
 	if claims == nil {
 		return
 	}
+	jwtExpires = s.clock.Until(claims.RegisteredClaims.ExpiresAt.Truncate(time.Second))
 	for _, t := range topics {
 		if slices.Contains(claims.Mercure.Subscribe, t) {
 			res = append(res, t)

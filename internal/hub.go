@@ -53,9 +53,8 @@ func (h *hub) Run(ctx context.Context) {
 			for _, topic := range conn.topics {
 				delete(h.subscriptions[topic], conn)
 			}
+			conn.close()
 			h.mutex.Unlock()
-			conn.closed = true
-			close(conn.send)
 		case msg := <-h.broadcast:
 			h.mutex.RLock()
 			for _, t := range msg.Topics {

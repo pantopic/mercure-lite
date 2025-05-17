@@ -277,12 +277,12 @@ func TestApi(t *testing.T) {
 		req.Header.Add("Authorization", "Bearer "+subJwtRS512)
 		resp, err := client.Do(req)
 		if err != nil {
-			log.Fatalf("Publish error: %v", err)
+			log.Fatalf("API Request error: %v", err)
 		}
 		defer resp.Body.Close()
 		respBody, err := io.ReadAll(resp.Body)
 		if err != nil {
-			log.Fatalf("Publish error: %v", err)
+			log.Fatalf("Error reading response body: %v", err)
 		}
 		var data = map[string]any{}
 		err = json.Unmarshal(respBody, &data)
@@ -290,15 +290,43 @@ func TestApi(t *testing.T) {
 		assert.Equal(t, 200, resp.StatusCode)
 		assert.Equal(t, 10, len(data["subscriptions"].([]any)))
 	})
+	t.Run("404", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", target+"/.well-known/garbage", nil)
+		req.Header.Add("Authorization", "Bearer "+subJwtRS512)
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Fatalf("API Request error: %v", err)
+		}
+		defer resp.Body.Close()
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Fatalf("Error reading response body: %v", err)
+		}
+		assert.Equal(t, 404, resp.StatusCode)
+		assert.Len(t, respBody, 0)
+	})
+	t.Run("OPTIONS", func(t *testing.T) {
+		req, _ := http.NewRequest("OPTIONS", target+"/.well-known/mercure", nil)
+		req.Header.Add("Authorization", "Bearer "+subJwtRS512)
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Fatalf("API Request error: %v", err)
+		}
+		defer resp.Body.Close()
+		assert.Equal(t, 200, resp.StatusCode)
+		assert.Equal(t, "true", resp.Header.Get("access-control-allow-credentials"))
+		assert.Equal(t, "Authorization", resp.Header.Get("access-control-allow-headers"))
+		assert.Equal(t, "*", resp.Header.Get("access-control-allow-origin"))
+	})
 }
 
 func TestMetrics(t *testing.T) {
 	s := testServer(Config{
 		PUBLISHER:  ConfigJWT{JWT_ALG: "PS384", JWT_KEY: pubKeyPS384},
 		SUBSCRIBER: ConfigJWT{JWT_ALG: "PS384", JWT_KEY: subKeyPS384},
+		METRICS:    ":9090",
 	})
 	defer s.Stop()
-	s.metrics = NewMetrics(":9090")
 	runIntegrationTest(t, s, pubJwtPS384, subJwtPS384, true)
 	t.Run("GET", func(t *testing.T) {
 		req, _ := http.NewRequest("GET", "http://localhost:9090/metrics", nil)
