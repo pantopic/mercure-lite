@@ -95,7 +95,9 @@ func (s *server) Start(ctx context.Context) (err error) {
 
 func (s *server) Stop() {
 	close(s.done)
-	s.server.Shutdown()
+	timeout, cancel := context.WithTimeout(s.ctx, time.Second)
+	defer cancel()
+	s.server.ShutdownWithContext(timeout)
 	s.metrics.Stop()
 	s.ctxCancel()
 	s.ctx = nil
