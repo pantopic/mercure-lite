@@ -45,13 +45,13 @@ func jwksKeys(c *http.Client, url string) (keys []any, maxage time.Duration) {
 			}
 			keys = append(keys, k)
 		}
-		maxage = 3600
+		maxage = 3600 * time.Second
 		directives, err := httpcc.ParseResponse(resp.Header.Get(`Cache-Control`))
-		if err != nil {
-			return
-		}
-		if val, present := directives.MaxAge(); present {
-			maxage = time.Duration(max(int(val), 60))
+		if err == nil {
+			val, present := directives.MaxAge()
+			if present {
+				maxage = time.Duration(max(int(val), 60)) * time.Second
+			}
 		}
 	}
 	return

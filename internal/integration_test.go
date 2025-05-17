@@ -66,6 +66,22 @@ func TestIntegration(t *testing.T) {
 			SUBSCRIBER: ConfigJWT{JWT_ALG: "PS384", JWT_KEY: subKeyPS384},
 		}), pubJwtPS384, subJwtPS384, true).Stop()
 	})
+	t.Run("nokeys", func(t *testing.T) {
+		t.Run("pub", func(t *testing.T) {
+			err := testServer(Config{
+				PUBLISHER:  ConfigJWT{JWT_ALG: "RS512"},
+				SUBSCRIBER: ConfigJWT{JWT_ALG: "RS512", JWT_KEY: subKeyRS512},
+			}).Start(t.Context())
+			assert.NotNil(t, err)
+		})
+		t.Run("sub", func(t *testing.T) {
+			err := testServer(Config{
+				PUBLISHER:  ConfigJWT{JWT_ALG: "RS512", JWT_KEY: pubKeyRS512},
+				SUBSCRIBER: ConfigJWT{JWT_ALG: "RS512"},
+			}).Start(t.Context())
+			assert.NotNil(t, err)
+		})
+	})
 }
 
 func TestIntegrationJwks(t *testing.T) {
@@ -89,7 +105,7 @@ func TestIntegrationJwks(t *testing.T) {
 		return &http.Response{
 			StatusCode: 200,
 			Body:       io.NopCloser(bytes.NewBufferString(body)),
-			Header:     make(http.Header),
+			Header:     http.Header{"Cache-Control": []string{"max-age=10"}},
 		}, nil
 	})
 	runIntegrationTest(t, s, pubJwtRS512, subJwtRS512, true)
@@ -108,6 +124,16 @@ func TestIntegrationJwks(t *testing.T) {
 	})
 	clk.Add(time.Hour)
 	runIntegrationTest(t, s, pubJwtRS512, subJwtRS512, false)
+	s.httpClient.Transport = RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(bytes.NewBufferString(`{"keys":[]}`)),
+			Header:     http.Header{"Cache-Control": []string{"max-age=100"}},
+		}, nil
+	})
+	clk.Add(time.Hour)
+	runIntegrationTest(t, s, pubJwtRS512, subJwtRS512, false).Stop()
+	clk.Add(time.Hour)
 }
 
 func TestIntegrationJwksMulti(t *testing.T) {
@@ -304,6 +330,29 @@ func TestApi(t *testing.T) {
 		}
 		assert.Equal(t, 404, resp.StatusCode)
 		assert.Len(t, respBody, 0)
+		req, _ = http.NewRequest("POST", target+"/.well-known/mercure/garbage", nil)
+		req.Header.Add("Authorization", "Bearer "+subJwtRS512)
+		resp, err = client.Do(req)
+		if err != nil {
+			log.Fatalf("API Request error: %v", err)
+		}
+		assert.Equal(t, 404, resp.StatusCode)
+	})
+	t.Run("405", func(t *testing.T) {
+		req, _ := http.NewRequest("PUT", target+"/.well-known/mercure?topic=test", nil)
+		req.Header.Add("Authorization", "Bearer "+pubJwtRS512)
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Fatalf("API Request error: %v", err)
+		}
+		assert.Equal(t, 405, resp.StatusCode)
+		req, _ = http.NewRequest("PUT", target+"/.well-known/mercure/subscriptions", nil)
+		req.Header.Add("Authorization", "Bearer "+subJwtRS512)
+		resp, err = client.Do(req)
+		if err != nil {
+			log.Fatalf("API Request error: %v", err)
+		}
+		assert.Equal(t, 405, resp.StatusCode)
 	})
 	t.Run("OPTIONS", func(t *testing.T) {
 		req, _ := http.NewRequest("OPTIONS", target+"/.well-known/mercure", nil)

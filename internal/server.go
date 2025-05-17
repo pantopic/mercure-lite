@@ -94,6 +94,9 @@ func (s *server) Start(ctx context.Context) (err error) {
 }
 
 func (s *server) Stop() {
+	if s.ctx == nil {
+		return
+	}
 	close(s.done)
 	timeout, cancel := context.WithTimeout(s.ctx, time.Second)
 	defer cancel()
@@ -297,21 +300,23 @@ func (s *server) startJwksRefresh() {
 		go func() {
 			t := s.clock.Ticker(s.subJwksRefresh)
 			defer t.Stop()
-			select {
-			case <-t.C:
-				keys, maxage := jwksKeys(s.httpClient, s.cfg.SUBSCRIBER.JWKS_URL)
-				if maxage != s.subJwksRefresh && maxage > 0 {
-					s.subJwksRefresh = maxage
-					t.Reset(s.subJwksRefresh)
+			for {
+				select {
+				case <-t.C:
+					keys, maxage := jwksKeys(s.httpClient, s.cfg.SUBSCRIBER.JWKS_URL)
+					if maxage != s.subJwksRefresh && maxage > 0 {
+						s.subJwksRefresh = maxage
+						t.Reset(s.subJwksRefresh)
+					}
+					if len(keys) < 1 {
+						break
+					}
+					s.mutex.Lock()
+					s.subKeysJwks = keys
+					s.mutex.Unlock()
+				case <-s.done:
+					return
 				}
-				if len(keys) < 1 {
-					break
-				}
-				s.mutex.Lock()
-				s.subKeysJwks = keys
-				s.mutex.Unlock()
-			case <-s.done:
-				return
 			}
 		}()
 	}
@@ -319,21 +324,23 @@ func (s *server) startJwksRefresh() {
 		go func() {
 			t := s.clock.Ticker(s.pubJwksRefresh)
 			defer t.Stop()
-			select {
-			case <-t.C:
-				keys, maxage := jwksKeys(s.httpClient, s.cfg.PUBLISHER.JWKS_URL)
-				if maxage != s.pubJwksRefresh && maxage > 0 {
-					s.pubJwksRefresh = maxage
-					t.Reset(s.pubJwksRefresh)
+			for {
+				select {
+				case <-t.C:
+					keys, maxage := jwksKeys(s.httpClient, s.cfg.PUBLISHER.JWKS_URL)
+					if maxage != s.pubJwksRefresh && maxage > 0 {
+						s.pubJwksRefresh = maxage
+						t.Reset(s.pubJwksRefresh)
+					}
+					if len(keys) < 1 {
+						break
+					}
+					s.mutex.Lock()
+					s.pubKeysJwks = keys
+					s.mutex.Unlock()
+				case <-s.done:
+					return
 				}
-				if len(keys) < 1 {
-					break
-				}
-				s.mutex.Lock()
-				s.pubKeysJwks = keys
-				s.mutex.Unlock()
-			case <-s.done:
-				return
 			}
 		}()
 	}
