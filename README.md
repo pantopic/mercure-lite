@@ -17,6 +17,27 @@ __Mercure Lite__ does not implement:
 - URI Template Topic Selectors
 - The reserved `"*"` topic for subscriptions
 
+## Performance
+
+Mercure Lite exhibits up to 30x higher throughput than Mercure in load tests.
+```
+> make dev
+> make loadtest
+2025/05/17 11:35:37 Starting 256 subscribers
+2025/05/17 11:35:37 Starting 16 publishers
+2025/05/17 11:35:37 Sending 10000 messages
+2025/05/17 11:35:38 10000 sent, 10000 received in 1.395261s
+
+> make parity-target
+> make parity
+2025/05/17 11:36:03 Starting 256 subscribers
+2025/05/17 11:36:03 Starting 16 publishers
+2025/05/17 11:36:04 Sending 10000 messages
+2025/05/17 11:36:48 10000 sent, 10000 received in 42.476316948s
+```
+
+See [cmd/loadtest](cmd/loadtest/main.go) for specifics
+
 ## Roadmap
 
 - `v0.0.x` - Alpha
