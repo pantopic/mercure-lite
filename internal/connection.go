@@ -32,6 +32,15 @@ func (c connection) Announce(h Hub, active bool) {
 	}
 }
 
+func (c connection) close() bool {
+	if c.closed {
+		return false
+	}
+	c.closed = true
+	close(c.send)
+	return true
+}
+
 func (c connection) toSubscription(topic string, active bool) subscription {
 	return subscription{
 		ID:         fmt.Sprintf("/.well-known/mercure/subscriptions/%s/%s", url.QueryEscape(topic), url.QueryEscape(c.id)),

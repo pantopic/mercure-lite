@@ -36,37 +36,41 @@ func jwtKeys(alg, key string) (keys []any) {
 	if slices.Contains(algECDSA, alg) ||
 		slices.Contains(algRSA, alg) ||
 		slices.Contains(algRSAPSS, alg) {
-		var block *pem.Block
-		rest := []byte(key)
-		var i int
-		for len(rest) > 0 {
-			i++
-			block, rest = pem.Decode(rest)
-			if block == nil {
-				log.Printf("Unable to decode %s block #%d", alg, i)
-				return
-			}
-			pubInterface, err := x509.ParsePKIXPublicKey(block.Bytes)
-			if err != nil {
-				log.Printf("Unable to parse key %s #%d", alg, i)
-				return
-			}
-			switch alg[:2] {
-			case "ES":
-				keys = append(keys, pubInterface.(*ecdsa.PublicKey))
-			case "RS":
-				keys = append(keys, pubInterface.(*rsa.PublicKey))
-			case "PS":
-				keys = append(keys, pubInterface.(*rsa.PublicKey))
-			}
-		}
-		return
+		return x509keys(alg, key)
 	}
 	if slices.Contains(algEdDSA, alg) {
 		log.Println("EdDSA key alg not supported")
 		return
 	}
 	log.Printf("Unrecognized key alg: %s", alg)
+	return
+}
+
+func x509keys(alg, key string) (keys []any) {
+	var rest = []byte(key)
+	var block *pem.Block
+	var i int
+	for len(rest) > 0 {
+		i++
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			log.Printf("Unable to decode %s block #%d", alg, i)
+			return
+		}
+		pubInterface, err := x509.ParsePKIXPublicKey(block.Bytes)
+		if err != nil {
+			log.Printf("Unable to parse key %s #%d", alg, i)
+			return
+		}
+		switch alg[:2] {
+		case "ES":
+			keys = append(keys, pubInterface.(*ecdsa.PublicKey))
+		case "RS":
+			keys = append(keys, pubInterface.(*rsa.PublicKey))
+		case "PS":
+			keys = append(keys, pubInterface.(*rsa.PublicKey))
+		}
+	}
 	return
 }
 

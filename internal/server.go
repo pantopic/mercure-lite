@@ -165,17 +165,11 @@ func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 	if len(topics) < 1 {
 		return
 	}
-	// Normalize subscription notification topics
-	for i := range topics {
-		t, err := uritemplate.New(topics[i])
-		if err != nil {
-			log.Printf("Invalid topic: %s", topics[i])
-			ctx.SetStatusCode(400)
-			return
-		}
-		if t.Match(subscriptionTopic) != nil {
-			topics[i] = subscriptionTopic
-		}
+	topics, err := s.normalize(topics)
+	if err != nil {
+		log.Print(err)
+		ctx.SetStatusCode(400)
+		return
 	}
 	ctx.SetContentType("text/event-stream")
 	ctx.Response.Header.Set("Cache-Control", "no-cache")
@@ -224,6 +218,19 @@ func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 	}))
 	s.metrics.Connect()
 	s.metrics.Subscribe(len(conn.topics))
+}
+
+func (s *server) normalize(topics []string) ([]string, error) {
+	for i := range topics {
+		t, err := uritemplate.New(topics[i])
+		if err != nil {
+			return topics, fmt.Errorf("Invalid topic: %s", topics[i])
+		}
+		if t.Match(subscriptionTopic) != nil {
+			topics[i] = subscriptionTopic
+		}
+	}
+	return topics, nil
 }
 
 func (s *server) verifySubscribe(ctx *fasthttp.RequestCtx, topics []string) (res []string) {

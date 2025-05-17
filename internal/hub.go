@@ -64,12 +64,8 @@ func (h *hub) Run(ctx context.Context) {
 						select {
 						case conn.send <- msg:
 						default:
-							if !conn.closed {
-								conn.closed = true
-								close(conn.send)
-								if h.metrics != nil {
-									h.metrics.Terminate()
-								}
+							if conn.close() {
+								h.metrics.Terminate()
 							}
 						}
 					}
