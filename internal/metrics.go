@@ -39,7 +39,9 @@ func (m *metrics) Start(ctx context.Context) {
 	}
 	m.init()
 	go func() {
-		log.Fatal(m.server.ListenAndServe())
+		if err := m.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal(err)
+		}
 	}()
 	go func() {
 		select {

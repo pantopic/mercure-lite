@@ -28,68 +28,42 @@ var (
 	err error
 )
 
+func init() {
+	pingPeriod = 10 * time.Millisecond
+}
+
 func TestIntegration(t *testing.T) {
 	if parity != "" {
 		return
 	}
 	t.Run("base", func(t *testing.T) {
 		runIntegrationTest(t, testServer(Config{
-			PUBLISHER: ConfigJWT{
-				JWT_KEY: pubKeyRS512,
-				JWT_ALG: "RS512",
-			},
-			SUBSCRIBER: ConfigJWT{
-				JWT_KEY: subKeyRS512,
-				JWT_ALG: "RS512",
-			},
+			PUBLISHER:  ConfigJWT{JWT_ALG: "RS512", JWT_KEY: pubKeyRS512},
+			SUBSCRIBER: ConfigJWT{JWT_ALG: "RS512", JWT_KEY: subKeyRS512},
 		}), pubJwtRS512, subJwtRS512, true).Stop()
 	})
 	t.Run("multi", func(t *testing.T) {
 		runIntegrationTest(t, testServer(Config{
-			PUBLISHER: ConfigJWT{
-				JWT_KEY: pubKeyRS512 + "\n" + subKeyRS512,
-				JWT_ALG: "RS512",
-			},
-			SUBSCRIBER: ConfigJWT{
-				JWT_KEY: pubKeyRS512 + "\n" + subKeyRS512,
-				JWT_ALG: "RS512",
-			},
+			PUBLISHER:  ConfigJWT{JWT_ALG: "RS512", JWT_KEY: pubKeyRS512 + "\n" + subKeyRS512},
+			SUBSCRIBER: ConfigJWT{JWT_ALG: "RS512", JWT_KEY: pubKeyRS512 + "\n" + subKeyRS512},
 		}), pubJwtRS512, subJwtRS512, true).Stop()
 	})
 	t.Run("HS256", func(t *testing.T) {
 		runIntegrationTest(t, testServer(Config{
-			PUBLISHER: ConfigJWT{
-				JWT_KEY: pubKeyHS256,
-				JWT_ALG: "HS256",
-			},
-			SUBSCRIBER: ConfigJWT{
-				JWT_KEY: subKeyHS256,
-				JWT_ALG: "HS256",
-			},
+			PUBLISHER:  ConfigJWT{JWT_ALG: "HS256", JWT_KEY: pubKeyHS256},
+			SUBSCRIBER: ConfigJWT{JWT_ALG: "HS256", JWT_KEY: subKeyHS256},
 		}), pubJwtHS256, subJwtHS256, true).Stop()
 	})
 	t.Run("ES256", func(t *testing.T) {
 		runIntegrationTest(t, testServer(Config{
-			PUBLISHER: ConfigJWT{
-				JWT_KEY: pubKeyES256,
-				JWT_ALG: "ES256",
-			},
-			SUBSCRIBER: ConfigJWT{
-				JWT_KEY: subKeyES256,
-				JWT_ALG: "ES256",
-			},
+			PUBLISHER:  ConfigJWT{JWT_ALG: "ES256", JWT_KEY: pubKeyES256},
+			SUBSCRIBER: ConfigJWT{JWT_ALG: "ES256", JWT_KEY: subKeyES256},
 		}), pubJwtES256, subJwtES256, true).Stop()
 	})
 	t.Run("PS384", func(t *testing.T) {
 		runIntegrationTest(t, testServer(Config{
-			PUBLISHER: ConfigJWT{
-				JWT_KEY: pubKeyPS384,
-				JWT_ALG: "PS384",
-			},
-			SUBSCRIBER: ConfigJWT{
-				JWT_KEY: subKeyPS384,
-				JWT_ALG: "PS384",
-			},
+			PUBLISHER:  ConfigJWT{JWT_ALG: "PS384", JWT_KEY: pubKeyPS384},
+			SUBSCRIBER: ConfigJWT{JWT_ALG: "PS384", JWT_KEY: subKeyPS384},
 		}), pubJwtPS384, subJwtPS384, true).Stop()
 	})
 }
@@ -99,12 +73,8 @@ func TestIntegrationJwks(t *testing.T) {
 		return
 	}
 	s := testServer(Config{
-		PUBLISHER: ConfigJWT{
-			JWKS_URL: "http://example.com/pub",
-		},
-		SUBSCRIBER: ConfigJWT{
-			JWKS_URL: "http://example.com/sub",
-		},
+		PUBLISHER:  ConfigJWT{JWKS_URL: "http://example.com/pub"},
+		SUBSCRIBER: ConfigJWT{JWKS_URL: "http://example.com/sub"},
 	})
 	defer s.Stop()
 	clk := clock.NewMock()
@@ -196,9 +166,6 @@ func runIntegrationTest(t *testing.T, s *server, pubJwt, subJwt string, success 
 	if err := s.Start(t.Context()); err != nil {
 		log.Fatal(err)
 	}
-	oldPing := pingPeriod
-	pingPeriod = 10 * time.Millisecond
-	defer func() { pingPeriod = oldPing }()
 	ctx1, cancel1 := context.WithCancel(t.Context())
 	ctx2, cancel2 := context.WithCancel(t.Context())
 	done1 := make(chan bool)
@@ -282,14 +249,8 @@ func TestApi(t *testing.T) {
 		return
 	}
 	s := testServer(Config{
-		PUBLISHER: ConfigJWT{
-			JWT_KEY: pubKeyRS512,
-			JWT_ALG: "RS512",
-		},
-		SUBSCRIBER: ConfigJWT{
-			JWT_KEY: subKeyRS512,
-			JWT_ALG: "RS512",
-		},
+		PUBLISHER:  ConfigJWT{JWT_ALG: "RS512", JWT_KEY: pubKeyRS512},
+		SUBSCRIBER: ConfigJWT{JWT_ALG: "RS512", JWT_KEY: subKeyRS512},
 	})
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -330,6 +291,35 @@ func TestApi(t *testing.T) {
 		require.Nil(t, err)
 		assert.Equal(t, 200, resp.StatusCode)
 		assert.Equal(t, 10, len(data["subscriptions"].([]any)))
+	})
+}
+
+func TestMetrics(t *testing.T) {
+	s := testServer(Config{
+		PUBLISHER:  ConfigJWT{JWT_ALG: "PS384", JWT_KEY: pubKeyPS384},
+		SUBSCRIBER: ConfigJWT{JWT_ALG: "PS384", JWT_KEY: subKeyPS384},
+	})
+	defer s.Stop()
+	s.metrics = NewMetrics(":9090")
+	runIntegrationTest(t, s, pubJwtPS384, subJwtPS384, true)
+	t.Run("GET", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "http://localhost:9090/metrics", nil)
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Fatalf("Publish error: %v", err)
+		}
+		defer resp.Body.Close()
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Fatalf("Publish error: %v", err)
+		}
+		require.Nil(t, err)
+		body := string(respBody)
+		assert.Contains(t, body, "mercure_lite_connections_active")
+		assert.Contains(t, body, "mercure_lite_messages_published 1")
+		assert.Contains(t, body, "mercure_lite_messages_sent 3") // Subscribe, message, unsubscribe
+		assert.Contains(t, body, "mercure_lite_subscriptions_total 2")
+		assert.Contains(t, body, "mercure_lite_connections_terminated 0")
 	})
 }
 
