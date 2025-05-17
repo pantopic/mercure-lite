@@ -32,7 +32,9 @@ Mercure Lite exhibits 30x higher throughput than Mercure in these load tests.
 
 See [cmd/loadtest](cmd/loadtest/main.go) for specifics
 
-__Mercure Lite__ might work for you if you do _not_ need:
+## Adoption
+
+__Mercure Lite__ might be right for you if you do _not_ need:
 
 - Integrated TLS Termination (Caddy)
 - URI Template topic selectors
