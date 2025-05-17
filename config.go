@@ -29,7 +29,7 @@ type ConfigJWT struct {
 	JWKS_URL string `env:"JWKS_URL" envDefault:""`
 
 	// JWT_KEY specifies the Key to use for JWT signature verification.
-	// For asymmetrics algorithsm like RSA this is typically a public key in PEM format.
+	// For asymmetrics algorithms like RSA this is typically a public key in PEM format.
 	// Multiple symmetric and asymmetric keys may be specified, newline delimited.
 	JWT_KEY string `env:"JWT_KEY" envDefault:"SECRET"`
 

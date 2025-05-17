@@ -150,9 +150,7 @@ func (s *server) publish(ctx *fasthttp.RequestCtx) {
 	s.hub.Broadcast(msg)
 	ctx.SetContentType("application/ld+json")
 	ctx.Write([]byte(msg.ID))
-	if s.metrics != nil {
-		s.metrics.Publish()
-	}
+	s.metrics.Publish()
 }
 
 func (s *server) options(ctx *fasthttp.RequestCtx) {
@@ -192,12 +190,8 @@ func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 	ctx.SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
 		defer s.hub.Unregister(conn)
 		defer conn.Announce(s.hub, false)
-		defer func() {
-			if s.metrics != nil {
-				s.metrics.Disconnect()
-				s.metrics.Unsubscribe(len(conn.topics))
-			}
-		}()
+		defer s.metrics.Disconnect()
+		defer s.metrics.Unsubscribe(len(conn.topics))
 		w.Write([]byte(":\n"))
 		if err := w.Flush(); err != nil {
 			return
@@ -219,9 +213,7 @@ func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 					return
 				}
 				last = msg.ID
-				if s.metrics != nil {
-					s.metrics.Send()
-				}
+				s.metrics.Send()
 			case <-pinger.C:
 				w.Write([]byte(":\n"))
 				if err := w.Flush(); err != nil {
@@ -230,10 +222,8 @@ func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 			}
 		}
 	}))
-	if s.metrics != nil {
-		s.metrics.Connect()
-		s.metrics.Subscribe(len(conn.topics))
-	}
+	s.metrics.Connect()
+	s.metrics.Subscribe(len(conn.topics))
 }
 
 func (s *server) verifySubscribe(ctx *fasthttp.RequestCtx, topics []string) (res []string) {
