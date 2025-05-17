@@ -14,7 +14,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/r3labs/sse"
+	"github.com/tmaxmax/go-sse"
 )
 
 var (
@@ -85,6 +85,8 @@ func main() {
 		jobs <- topics[rand.Intn(*subs)]
 	}
 
+	time.Sleep(50 * time.Millisecond)
+
 	// Close publishers
 	close(jobs)
 	wgPub.Wait()
@@ -92,6 +94,8 @@ func main() {
 	for _, p := range publishers {
 		sent += p.sent
 	}
+
+	time.Sleep(50 * time.Millisecond)
 
 	// Close subscribers
 	cancel()
@@ -102,7 +106,7 @@ func main() {
 	}
 
 	// Print results
-	log.Printf("%d sent, %d received in %v", sent, received, time.Since(start))
+	log.Printf("%d sent, %d received in %v", sent, received, time.Since(start)-(100*time.Millisecond))
 }
 
 type subscriber struct {
@@ -110,12 +114,22 @@ type subscriber struct {
 }
 
 func (w *subscriber) Start(token string, topics []string) {
-	events := make(chan *sse.Event)
-	sseClient := sse.NewClient(*target + "/.well-known/mercure?topic=" + strings.Join(topics, "&topic="))
-	sseClient.Headers["Authorization"] = "Bearer " + token
-	if err := sseClient.SubscribeChanRawWithContext(ctx, events); err != nil {
+	events := make(chan sse.Event)
+	url := *target + "/.well-known/mercure?topic=" + strings.Join(topics, "&topic=")
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
 		log.Fatal(err)
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	conn := sse.NewConnection(req)
+	go func() {
+		if err := conn.Connect(); err != nil && err != context.Canceled {
+			log.Println(err)
+		}
+	}()
+	conn.SubscribeToAll(func(evt sse.Event) {
+		events <- evt
+	})
 	go func() {
 		defer wgSub.Done()
 		for {

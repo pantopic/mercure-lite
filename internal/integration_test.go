@@ -15,9 +15,9 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/r3labs/sse"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tmaxmax/go-sse"
 )
 
 var (
@@ -166,15 +166,15 @@ func runIntegrationTest(t *testing.T, s *server, pubJwt, subJwt string, success 
 	if err := s.Start(t.Context()); err != nil {
 		log.Fatal(err)
 	}
+	time.Sleep(50 * time.Millisecond)
 	ctx1, cancel1 := context.WithCancel(t.Context())
 	ctx2, cancel2 := context.WithCancel(t.Context())
 	done1 := make(chan bool)
 	done2 := make(chan bool)
-	subEvents := make(chan *sse.Event)
-	sseClientSubs := sse.NewClient(target + "/.well-known/mercure?topic=/.well-known/mercure/subscriptions{/topic}{/subscriber}")
-	sseClientSubs.Headers["Authorization"] = "Bearer " + subJwt
-	sseClientSubs.SubscribeChanRawWithContext(ctx2, subEvents)
-	time.Sleep(10 * time.Millisecond)
+	subEvents := make(chan sse.Event)
+	subUrl := target + "/.well-known/mercure?topic=/.well-known/mercure/subscriptions{/topic}{/subscriber}"
+	sseClientStart(ctx2, subUrl, subJwt, subEvents)
+	time.Sleep(50 * time.Millisecond)
 	var active bool
 	var subEventCount = &atomic.Uint32{}
 	go func() {
@@ -194,17 +194,16 @@ func runIntegrationTest(t *testing.T, s *server, pubJwt, subJwt string, success 
 			}
 		}
 	}()
-	events := make(chan *sse.Event)
-	sseClient := sse.NewClient(target + "/.well-known/mercure?topic=test")
-	sseClient.Headers["Authorization"] = "Bearer " + subJwt
-	sseClient.SubscribeChanRawWithContext(ctx1, events)
+	events := make(chan sse.Event)
+	subUrl = target + "/.well-known/mercure?topic=test"
+	sseClientStart(ctx1, subUrl, subJwt, events)
 	time.Sleep(10 * time.Millisecond)
 	var id, data string
 	go func() {
 		for {
 			select {
 			case e := <-events:
-				id = string(e.ID)
+				id = string(e.LastEventID)
 				data = string(e.Data)
 				cancel1()
 			case <-ctx1.Done():
@@ -232,7 +231,6 @@ func runIntegrationTest(t *testing.T, s *server, pubJwt, subJwt string, success 
 		<-done1
 		assert.Equal(t, id, string(respBody))
 		assert.Equal(t, "test-data", data)
-		sseClient.Unsubscribe(events)
 		<-done2
 		assert.Equal(t, false, active)
 		assert.EqualValues(t, 2, subEventCount.Load())
@@ -257,23 +255,23 @@ func TestApi(t *testing.T) {
 	if err := s.Start(ctx); err != nil {
 		log.Fatal(err)
 	}
+	time.Sleep(50 * time.Millisecond)
 	for range 10 {
-		events := make(chan *sse.Event)
-		sseClient := sse.NewClient(target + "/.well-known/mercure?topic=test")
-		sseClient.Headers["Authorization"] = "Bearer " + subJwtRS512
-		sseClient.SubscribeChanRawWithContext(ctx, events)
+		events := make(chan sse.Event)
+		subUrl := target + "/.well-known/mercure?topic=test"
+		sseClientStart(ctx, subUrl, subJwtRS512, events)
 		go func() {
 			defer close(events)
 			for {
 				select {
 				case <-events:
 				case <-ctx.Done():
-					sseClient.Unsubscribe(events)
 					return
 				}
 			}
 		}()
 	}
+	time.Sleep(50 * time.Millisecond)
 	t.Run("GET", func(t *testing.T) {
 		req, _ := http.NewRequest("GET", target+"/.well-known/mercure/subscriptions", nil)
 		req.Header.Add("Authorization", "Bearer "+subJwtRS512)
@@ -421,4 +419,21 @@ type RoundTripperFunc func(req *http.Request) (*http.Response, error)
 
 func (f RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+func sseClientStart(ctx context.Context, url, jwt string, events chan sse.Event) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+jwt)
+	conn := sse.NewConnection(req)
+	go func() {
+		if err := conn.Connect(); err != nil && err != context.Canceled {
+			log.Println(err)
+		}
+	}()
+	conn.SubscribeToAll(func(evt sse.Event) {
+		events <- evt
+	})
 }

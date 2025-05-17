@@ -10,8 +10,8 @@ require (
 	github.com/lestrrat-go/httpcc v1.0.1
 	github.com/lestrrat-go/jwx/v2 v2.1.6
 	github.com/prometheus/client_golang v1.22.0
-	github.com/r3labs/sse v0.0.0-20210224172625-26fe804710bc
 	github.com/stretchr/testify v1.10.0
+	github.com/tmaxmax/go-sse v0.11.0
 	github.com/valyala/fasthttp v1.62.0
 	github.com/yosida95/uritemplate v2.0.0+incompatible
 )
@@ -37,9 +37,7 @@ require (
 	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	golang.org/x/crypto v0.38.0 // indirect
-	golang.org/x/net v0.40.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
-	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
