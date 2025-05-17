@@ -1,25 +1,19 @@
 # Mercure Lite
 
-A partial implementation of the [Mercure protocol](https://www.ietf.org/archive/id/draft-dunglas-mercure-07.html).
+A partial implementation of [The Mercure Protocol](https://www.ietf.org/archive/id/draft-dunglas-mercure-07.html).
 
 [![Go Reference](https://godoc.org/github.com/pantopic/mercure-lite?status.svg)](https://godoc.org/github.com/pantopic/mercure-lite)
 [![License](https://img.shields.io/badge/License-Apache_2.0-orange.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Go Report Card](https://goreportcard.com/badge/github.com/pantopic/mercure-lite?4)](https://goreportcard.com/report/github.com/pantopic/mercure-lite)
 [![Go Coverage](https://github.com/pantopic/mercure-lite/wiki/coverage.svg)](https://raw.githack.com/wiki/pantopic/mercure-lite/coverage.html)
 
-Mercure has a number of features that not everybody needs. The ability to express topic selectors as uri templates makes the protocol more flexible but also presents performance and scalability challenges.
+The mercure protocol contains a number of features that many users don't need. The ability to express topic selectors as uri templates makes the protocol more flexible but also presents performance and scalability challenges.
 
 This project implements 80% of the Mercure protocol in 20% as many lines of code as the canonical implementation. It is equally stable and secure trading fewer features for a 30x improvement in throughput.
 
-__Mercure Lite__ does not implement:
-
-- Integrated TLS Termination (Caddy)
-- URI Template Topic Selectors
-- The reserved `"*"` topic for subscriptions
-
 ## Performance
 
-Mercure Lite exhibits up to 30x higher throughput than Mercure in load tests.
+Mercure Lite exhibits 30x higher throughput than Mercure in these load tests.
 ```
 > make dev
 > make loadtest
@@ -37,6 +31,12 @@ Mercure Lite exhibits up to 30x higher throughput than Mercure in load tests.
 ```
 
 See [cmd/loadtest](cmd/loadtest/main.go) for specifics
+
+__Mercure Lite__ might work for you if you do _not_ need:
+
+- Integrated TLS Termination (Caddy)
+- URI Template topic selectors
+- Subscription to the reserved `"*"` topic
 
 ## Roadmap
 
