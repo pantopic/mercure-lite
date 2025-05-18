@@ -17,10 +17,10 @@ Mercure Lite performance is on par with Mercure for local transport.
 ```
 > make dev
 > make loadtest
-2025/05/17 11:35:37 Starting 256 subscribers
-2025/05/17 11:35:37 Starting 16 publishers
-2025/05/17 11:35:37 Sending 10000 messages
-2025/05/17 11:35:38 10000 sent, 10000 received in 1.395261s
+2025/05/18 11:10:44 Starting 256 subscribers
+2025/05/18 11:10:44 Starting 16 publishers
+2025/05/18 11:10:45 Sending 10000 messages
+2025/05/18 11:10:47 10000 sent, 10000 received in 1.206347937s
 
 > make parity-target
 > make parity

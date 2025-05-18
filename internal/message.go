@@ -3,25 +3,33 @@ package internal
 import (
 	"fmt"
 	"io"
+	"sync"
 )
+
+var messagePool = sync.Pool{
+	New: func() any {
+		return &message{}
+	},
+}
 
 type message struct {
 	ID     string
 	Type   string
 	Topics []string
-	Data   []byte
+	Data   string
 }
 
-func newMessage(msgType string, topics []string, data []byte) message {
-	return message{
-		ID:     uuidv7(),
-		Type:   msgType,
-		Topics: topics,
-		Data:   data,
-	}
+func newMessage(msgType string, topics []string, data string) (m *message) {
+	m = messagePool.Get().(*message)
+	m.ID = uuidv7()
+	m.Type = msgType
+	m.Topics = topics
+	m.Data = data
+	return
 }
 
-func (msg message) WriteTo(w io.Writer) (n int64, err error) {
+func (msg *message) WriteTo(w io.Writer) (n int64, err error) {
+	defer messagePool.Put(msg)
 	out := ""
 	if len(msg.ID) > 0 {
 		out += fmt.Sprintf("id: %v\n", msg.ID)

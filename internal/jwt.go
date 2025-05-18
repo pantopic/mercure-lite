@@ -7,11 +7,11 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"log"
+	"net/http"
 	"slices"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/valyala/fasthttp"
 )
 
 var (
@@ -88,12 +88,15 @@ type tokenClaims struct {
 	jwt.RegisteredClaims
 }
 
-func jwtTokenClaims(ctx *fasthttp.RequestCtx, keys []any) *tokenClaims {
-	tokenStr := string(ctx.Request.Header.Peek("Authorization"))
+func jwtTokenClaims(r *http.Request, keys []any) *tokenClaims {
+	tokenStr := r.Header.Get("Authorization")
 	if parts := strings.Split(tokenStr, " "); len(parts) == 2 {
 		tokenStr = parts[1]
 	} else {
-		tokenStr = string(ctx.Request.Header.Cookie("mercureAuthorization"))
+		cookies := r.CookiesNamed("mercureAuthorization")
+		if len(cookies) > 0 {
+			tokenStr = cookies[0].Value
+		}
 	}
 	if tokenStr == "" {
 		return nil
