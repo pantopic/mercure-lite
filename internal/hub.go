@@ -10,7 +10,7 @@ type Hub interface {
 	Run(context.Context)
 	Register(*connection)
 	Unregister(*connection)
-	Broadcast(message)
+	Broadcast(*message)
 	Connections() map[*connection]bool
 }
 
@@ -19,7 +19,7 @@ type hub struct {
 	subscriptions map[string]map[*connection]bool
 	register      chan *connection
 	unregister    chan *connection
-	broadcast     chan message
+	broadcast     chan *message
 
 	mutex sync.RWMutex
 }
@@ -30,7 +30,7 @@ func newHub(m *metrics) *hub {
 		subscriptions: make(map[string]map[*connection]bool),
 		register:      make(chan *connection),
 		unregister:    make(chan *connection),
-		broadcast:     make(chan message),
+		broadcast:     make(chan *message),
 	}
 }
 
@@ -75,7 +75,7 @@ func (h *hub) Run(ctx context.Context) {
 	}
 }
 
-func (h *hub) Broadcast(msg message) {
+func (h *hub) Broadcast(msg *message) {
 	h.broadcast <- msg
 }
 

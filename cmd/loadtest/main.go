@@ -19,7 +19,7 @@ import (
 
 var (
 	ctx    = context.Background()
-	client = &http.Client{Timeout: time.Second}
+	client = &http.Client{Timeout: 5 * time.Second}
 	target = flag.String("target", "http://localhost:8001", "Target")
 	parity = flag.Bool("parity", false, "Parity target")
 	subs   = flag.Int("s", 256, "Number of concurrent subscribers")
@@ -64,6 +64,9 @@ func main() {
 		subscribers = append(subscribers, s)
 		s.Start(token, []string{topics[i]})
 	}
+
+	time.Sleep(2 * time.Second)
+
 	// publishers
 	wgPub.Add(*pubs)
 	log.Printf("Starting %d publishers", *pubs)
@@ -109,7 +112,7 @@ func main() {
 	}
 
 	// Print results
-	log.Printf("%d sent, %d received in %v", sent, received, t)
+	log.Printf("%d sent, %d received in %v (%.2f msgs/sec)", sent, received, t, float64(sent)/(float64(t)/float64(time.Second)))
 }
 
 type subscriber struct {
