@@ -44,8 +44,8 @@ __Mercure Lite__ might be right for you if you do _not_ need:
 
 - `v0.0.x` - Alpha
   - [X] Add support for more (all) JWT key algorithms
-  - [ ] Close connections made with tokens that expire while connection is open
-  - [ ] Test more failure scenarios (ie. malformed keys, tokens, etc)
+  - [X] Close connections made with tokens that expire while connection is open
+  - [X] Test more failure scenarios (ie. malformed keys, tokens, etc)
 - `v0.x.x` - Beta
   - [ ] Add storage capabilities
   - [ ] Add support for `last-event-id`
