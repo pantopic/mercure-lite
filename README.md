@@ -36,7 +36,7 @@ See [cmd/loadtest](cmd/loadtest/main.go) for specifics
 
 __Mercure Lite__ might be right for you if you do _not_ need:
 
-- Integrated TLS Termination (Caddy)
+- Integrated TLS Termination
 - URI Template topic selectors
 - Subscription to the reserved `"*"` topic
 
