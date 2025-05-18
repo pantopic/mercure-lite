@@ -44,9 +44,10 @@ func main() {
 		publishers  []*publisher
 		subscribers []*subscriber
 		topics      = make([]string, *subs)
+		jobs        = make(chan string)
 	)
 	ctx, cancel = context.WithCancel(ctx)
-
+	// subscribers
 	wgSub.Add(*subs)
 	log.Printf("Starting %d subscribers", *subs)
 	for i := range *subs {
@@ -63,6 +64,7 @@ func main() {
 		subscribers = append(subscribers, s)
 		s.Start(token, []string{topics[i]})
 	}
+	// publishers
 	wgPub.Add(*pubs)
 	log.Printf("Starting %d publishers", *pubs)
 	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
@@ -73,19 +75,20 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	var jobs = make(chan string, *pubs)
-	start := time.Now()
 	for range *pubs {
 		p := new(publisher)
 		p.Start(jobs, token)
 		publishers = append(publishers, p)
 	}
+
+	time.Sleep(time.Second)
+
+	// messages
+	start := time.Now()
 	log.Printf("Sending %d messages", *msgs)
 	for range *msgs {
 		jobs <- topics[rand.Intn(*subs)]
 	}
-
-	time.Sleep(50 * time.Millisecond)
 
 	// Close publishers
 	close(jobs)
@@ -95,7 +98,7 @@ func main() {
 		sent += p.sent
 	}
 
-	time.Sleep(50 * time.Millisecond)
+	t := time.Since(start)
 
 	// Close subscribers
 	cancel()
@@ -106,7 +109,7 @@ func main() {
 	}
 
 	// Print results
-	log.Printf("%d sent, %d received in %v", sent, received, time.Since(start)-(100*time.Millisecond))
+	log.Printf("%d sent, %d received in %v", sent, received, t)
 }
 
 type subscriber struct {
@@ -147,10 +150,10 @@ type publisher struct {
 	sent int
 }
 
-func (w *publisher) Start(topics chan string, token string) {
+func (w *publisher) Start(jobs chan string, token string) {
 	go func() {
 		defer wgPub.Done()
-		for topic := range topics {
+		for topic := range jobs {
 			req, _ := http.NewRequest("POST", *target+"/.well-known/mercure", strings.NewReader(url.Values{
 				"data":  {"test-data"},
 				"topic": {topic},

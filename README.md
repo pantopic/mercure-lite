@@ -9,11 +9,11 @@ A partial implementation of [The Mercure Protocol](https://www.ietf.org/archive/
 
 The mercure protocol contains a number of features that many users don't need. The ability to express topic selectors as uri templates makes the protocol more flexible but also presents performance and scalability challenges.
 
-This project implements 80% of the Mercure protocol in 20% as many lines of code as the canonical implementation. It is equally stable and secure trading fewer features for a 30x improvement in throughput.
+This project implements 80% of the Mercure protocol in 20% as many lines of code as the canonical implementation.
 
 ## Performance
 
-Mercure Lite exhibits 30x higher throughput than Mercure in these load tests.
+Mercure Lite performance is on par with Mercure for local transport.
 ```
 > make dev
 > make loadtest
@@ -24,10 +24,10 @@ Mercure Lite exhibits 30x higher throughput than Mercure in these load tests.
 
 > make parity-target
 > make parity
-2025/05/17 11:36:03 Starting 256 subscribers
-2025/05/17 11:36:03 Starting 16 publishers
-2025/05/17 11:36:04 Sending 10000 messages
-2025/05/17 11:36:48 10000 sent, 10000 received in 42.476316948s
+2025/05/18 10:04:29 Starting 256 subscribers
+2025/05/18 10:04:29 Starting 16 publishers
+2025/05/18 10:04:30 Sending 10000 messages
+2025/05/18 10:04:32 10000 sent, 10000 received in 1.488329306s
 ```
 
 See [cmd/loadtest](cmd/loadtest/main.go) for specifics
