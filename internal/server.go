@@ -59,17 +59,20 @@ func (s *server) Start(ctx context.Context) (err error) {
 	if s.ctx != nil {
 		return
 	}
+	var maxage time.Duration
 	s.ctx, s.ctxCancel = context.WithCancel(ctx)
 	s.pubKeys = jwtKeys(s.cfg.PUBLISHER.JWT_ALG, s.cfg.PUBLISHER.JWT_KEY)
-	s.pubKeysJwks, s.pubJwksRefresh = jwksKeys(s.httpClient, s.cfg.PUBLISHER.JWKS_URL)
+	s.pubKeysJwks, maxage = jwksKeys(s.httpClient, s.cfg.PUBLISHER.JWKS_URL)
 	if len(s.allPubKeys()) == 0 {
 		return fmt.Errorf("No publish keys available")
 	}
+	s.pubJwksRefresh = time.Duration(max(int(maxage), 60)) * time.Second
 	s.subKeys = jwtKeys(s.cfg.SUBSCRIBER.JWT_ALG, s.cfg.SUBSCRIBER.JWT_KEY)
-	s.subKeysJwks, s.subJwksRefresh = jwksKeys(s.httpClient, s.cfg.SUBSCRIBER.JWKS_URL)
+	s.subKeysJwks, maxage = jwksKeys(s.httpClient, s.cfg.SUBSCRIBER.JWKS_URL)
 	if len(s.allSubKeys()) == 0 {
 		return fmt.Errorf("No subscriber keys available")
 	}
+	s.subJwksRefresh = time.Duration(max(int(maxage), 60)) * time.Second
 	s.done = make(chan bool)
 	s.startJwksRefresh()
 	go s.hub.Run(s.ctx)
@@ -168,6 +171,9 @@ func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 	if len(topics) < 1 {
 		return
 	}
+	if jwtExpires < 1 {
+		jwtExpires = time.Hour * 1e6
+	}
 	topics, err := s.normalize(topics)
 	if err != nil {
 		log.Print(err)
@@ -243,7 +249,9 @@ func (s *server) verifySubscribe(ctx *fasthttp.RequestCtx, topics []string) (res
 	if claims == nil {
 		return
 	}
-	jwtExpires = s.clock.Until(claims.RegisteredClaims.ExpiresAt.Truncate(time.Second))
+	if claims.RegisteredClaims.ExpiresAt != nil {
+		jwtExpires = s.clock.Until(claims.RegisteredClaims.ExpiresAt.Truncate(time.Second))
+	}
 	for _, t := range topics {
 		if slices.Contains(claims.Mercure.Subscribe, t) {
 			res = append(res, t)
@@ -305,7 +313,7 @@ func (s *server) startJwksRefresh() {
 				case <-t.C:
 					keys, maxage := jwksKeys(s.httpClient, s.cfg.SUBSCRIBER.JWKS_URL)
 					if maxage != s.subJwksRefresh && maxage > 0 {
-						s.subJwksRefresh = maxage
+						s.subJwksRefresh = maxage * time.Second
 						t.Reset(s.subJwksRefresh)
 					}
 					if len(keys) < 1 {
@@ -329,7 +337,7 @@ func (s *server) startJwksRefresh() {
 				case <-t.C:
 					keys, maxage := jwksKeys(s.httpClient, s.cfg.PUBLISHER.JWKS_URL)
 					if maxage != s.pubJwksRefresh && maxage > 0 {
-						s.pubJwksRefresh = maxage
+						s.pubJwksRefresh = maxage * time.Second
 						t.Reset(s.pubJwksRefresh)
 					}
 					if len(keys) < 1 {

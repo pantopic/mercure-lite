@@ -34,23 +34,19 @@ func jwksKeys(c *http.Client, url string) (keys []any, maxage time.Duration) {
 			return
 		}
 		for _, k := range jwks["keys"] {
-			kjson, err := json.Marshal(k)
-			if err != nil {
-				log.Println(err)
-				return
-			}
+			kjson, _ := json.Marshal(k)
 			if err := jwk.ParseRawKey(kjson, &k); err != nil {
 				log.Println(err)
 				return
 			}
 			keys = append(keys, k)
 		}
-		maxage = 3600 * time.Second
+		maxage = 3600
 		directives, err := httpcc.ParseResponse(resp.Header.Get(`Cache-Control`))
 		if err == nil {
 			val, present := directives.MaxAge()
 			if present {
-				maxage = time.Duration(max(int(val), 60)) * time.Second
+				maxage = time.Duration(max(int(val), 60))
 			}
 		}
 	}

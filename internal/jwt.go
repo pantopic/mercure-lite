@@ -64,11 +64,17 @@ func x509keys(alg, key string) (keys []any) {
 		}
 		switch alg[:2] {
 		case "ES":
-			keys = append(keys, pubInterface.(*ecdsa.PublicKey))
+			if k, ok := pubInterface.(*ecdsa.PublicKey); ok {
+				keys = append(keys, k)
+			}
 		case "RS":
-			keys = append(keys, pubInterface.(*rsa.PublicKey))
+			if k, ok := pubInterface.(*rsa.PublicKey); ok {
+				keys = append(keys, k)
+			}
 		case "PS":
-			keys = append(keys, pubInterface.(*rsa.PublicKey))
+			if k, ok := pubInterface.(*rsa.PublicKey); ok {
+				keys = append(keys, k)
+			}
 		}
 	}
 	return
