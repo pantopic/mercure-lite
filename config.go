@@ -18,6 +18,9 @@ type Config struct {
 	// METRICS specifies listen interface for prometheus metrics.
 	// i.e. http://localhost:9090/metrics
 	METRICS string `env:"METRICS" envDefault:":9090"`
+
+	// HUB_COUNT specifies to how many hubs messages should be sharded.
+	HUB_COUNT int `env:"HUB_COUNT" envDefault:"16"`
 }
 
 // ConfigJWT specifies the JWT auth configuration for publishers and subscribers.

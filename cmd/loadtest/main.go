@@ -44,7 +44,7 @@ func main() {
 		publishers  []*publisher
 		subscribers []*subscriber
 		topics      = make([]string, *subs)
-		jobs        = make(chan string)
+		jobs        = make(chan string, 256)
 	)
 	ctx, cancel = context.WithCancel(ctx)
 	// subscribers
@@ -112,7 +112,7 @@ func main() {
 	}
 
 	// Print results
-	log.Printf("%d sent, %d received in %v (%.2f msgs/sec)", sent, received, t, float64(sent)/(float64(t)/float64(time.Second)))
+	log.Printf("%d sent, %d received in %v (%.2f msgs/sec)", sent, received, t.Truncate(time.Millisecond), float64(sent)/(float64(t)/float64(time.Second)))
 }
 
 type subscriber struct {

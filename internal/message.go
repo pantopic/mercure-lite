@@ -4,11 +4,15 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"sync/atomic"
 )
 
 var messagePool = sync.Pool{
 	New: func() any {
-		return &message{}
+		return &message{
+			ID: uuidv7(),
+			n:  &atomic.Uint64{},
+		}
 	},
 }
 
@@ -17,11 +21,11 @@ type message struct {
 	Type   string
 	Topics []string
 	Data   string
+	n      *atomic.Uint64
 }
 
 func newMessage(msgType string, topics []string, data string) (m *message) {
 	m = messagePool.Get().(*message)
-	m.ID = uuidv7()
 	m.Type = msgType
 	m.Topics = topics
 	m.Data = data
@@ -29,7 +33,6 @@ func newMessage(msgType string, topics []string, data string) (m *message) {
 }
 
 func (msg *message) WriteTo(w io.Writer) (n int64, err error) {
-	defer messagePool.Put(msg)
 	out := ""
 	if len(msg.ID) > 0 {
 		out += fmt.Sprintf("id: %v\n", msg.ID)
@@ -48,4 +51,12 @@ func (msg *message) WriteTo(w io.Writer) (n int64, err error) {
 		return
 	}
 	return int64(len(out)), nil
+}
+
+func (msg *message) release() {
+	// msg must be released by both publisher and subscriber
+	if msg.n.Add(1)%2 == 0 {
+		msg.ID = uuidv7()
+		messagePool.Put(msg)
+	}
 }

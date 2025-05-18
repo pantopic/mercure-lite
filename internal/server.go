@@ -49,7 +49,7 @@ func NewServer(cfg Config) *server {
 		clock:      clock.New(),
 		httpClient: &http.Client{Timeout: 5 * time.Second},
 		metrics:    m,
-		hub:        newHub(m),
+		hub:        newHubMulti(cfg.HUB_COUNT, m),
 	}
 }
 
@@ -151,6 +151,7 @@ func (s *server) publish(w http.ResponseWriter, r *http.Request) {
 	s.hub.Broadcast(msg)
 	w.Header().Set("Content-Type", "application/ld+json")
 	w.Write([]byte(msg.ID))
+	msg.release()
 	s.metrics.Publish()
 }
 
@@ -214,6 +215,7 @@ func (s *server) subscribe(w http.ResponseWriter, r *http.Request) {
 			}
 			flush()
 			last = msg.ID
+			msg.release()
 			s.metrics.Send()
 		case <-ping.C:
 			if _, err := w.Write([]byte(":\n")); err != nil {

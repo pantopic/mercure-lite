@@ -9,7 +9,9 @@ import (
 
 var connectionPool = sync.Pool{
 	New: func() any {
-		return &connection{}
+		return &connection{
+			send: make(chan *message, 256),
+		}
 	},
 }
 
@@ -18,7 +20,6 @@ func newConnection(topics []string) (c *connection) {
 	c.id = uuidv7()
 	c.topics = topics
 	c.closed = false
-	c.send = make(chan *message, 256)
 	return
 }
 
@@ -46,6 +47,7 @@ func (c *connection) close() bool {
 	}
 	c.closed = true
 	close(c.send)
+	c.send = make(chan *message, 256)
 	connectionPool.Put(c)
 	return true
 }
