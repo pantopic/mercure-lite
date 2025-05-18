@@ -144,6 +144,7 @@ func (s *server) publish(w http.ResponseWriter, r *http.Request) {
 		s.verifyPublish(r, r.Form["topic"]),
 		r.Form.Get("data"),
 	)
+	defer msg.release()
 	if len(msg.Topics) == 0 {
 		w.WriteHeader(403)
 		return
@@ -151,7 +152,6 @@ func (s *server) publish(w http.ResponseWriter, r *http.Request) {
 	s.hub.Broadcast(msg)
 	w.Header().Set("Content-Type", "application/ld+json")
 	w.Write([]byte(msg.ID))
-	msg.release()
 	s.metrics.Publish()
 }
 

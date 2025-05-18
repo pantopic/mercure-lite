@@ -13,21 +13,40 @@ This project implements 80% of the Mercure protocol in 20% as many lines of code
 
 ## Performance
 
-Mercure Lite performance is on par with Mercure for local transport.
-```
-> make dev
-> make loadtest
-2025/05/18 11:10:44 Starting 256 subscribers
-2025/05/18 11:10:44 Starting 16 publishers
-2025/05/18 11:10:45 Sending 10000 messages
-2025/05/18 11:10:47 10000 sent, 10000 received in 1.206347937s
-
-> make parity-target
+Mercure Lite performance is similar to Mercure for local transport at low concurrency.
+```bash
+# Mercure
 > make parity
 2025/05/18 10:04:29 Starting 256 subscribers
 2025/05/18 10:04:29 Starting 16 publishers
 2025/05/18 10:04:30 Sending 10000 messages
-2025/05/18 10:04:32 10000 sent, 10000 received in 1.488329306s
+2025/05/18 10:04:32 10000 sent, 10000 received in 1.488329306s (6718.94 msgs/sec)
+
+# Mercure Lite
+> make loadtest
+2025/05/18 11:10:44 Starting 256 subscribers
+2025/05/18 11:10:44 Starting 16 publishers
+2025/05/18 11:10:45 Sending 10000 messages
+2025/05/18 11:10:47 10000 sent, 10000 received in 1.206347937s (8289.53 msgs/sec)
+```
+
+Mercure Lite can significantly outperform Mercure at high concurrency.
+
+This test uses Caddy running on a single AWS EC2 `c7i.xlarge` (4 cpu cores).
+```bash
+# Mercure
+$ go run main.go -s 20000 -c 256 -n 50000 -target https://test.hky.me
+2025/05/18 22:37:03 Starting 20000 subscribers
+2025/05/18 22:37:09 Starting 256 publishers
+2025/05/18 22:37:10 Sending 50000 messages
+2025/05/18 22:40:07 50000 sent, 50000 received in 2m57.127s (282.28 msgs/sec)
+
+# Mercure Lite
+$ go run main.go -s 20000 -c 256 -n 50000 -target https://test.hky.me
+2025/05/18 22:40:56 Starting 20000 subscribers
+2025/05/18 22:41:02 Starting 256 publishers
+2025/05/18 22:41:03 Sending 50000 messages
+2025/05/18 22:41:24 50000 sent, 50000 received in 21.572s (2317.80 msgs/sec)
 ```
 
 See [cmd/loadtest](cmd/loadtest/main.go) for specifics
@@ -39,6 +58,21 @@ __Mercure Lite__ might be right for you if you do _not_ need:
 - Integrated TLS Termination
 - URI Template topic selectors
 - Subscription to the reserved `"*"` topic
+
+## Deployment
+
+Mercure Lite runs as its own process (port 8001 by default).
+
+You can put it behind Caddy for TLS termination using the `reverse_proxy` Caddyfile directive:
+
+```ini
+# Caddyfile
+test.hky.me {
+        reverse_proxy {
+                to localhost:8001
+        }
+}
+```
 
 ## Roadmap
 
