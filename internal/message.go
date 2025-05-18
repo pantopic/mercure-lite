@@ -9,10 +9,10 @@ type message struct {
 	ID     string
 	Type   string
 	Topics []string
-	Data   []byte
+	Data   string
 }
 
-func newMessage(msgType string, topics []string, data []byte) message {
+func newMessage(msgType string, topics []string, data string) message {
 	return message{
 		ID:     uuidv7(),
 		Type:   msgType,

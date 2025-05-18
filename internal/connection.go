@@ -27,7 +27,7 @@ func (c connection) Announce(h Hub, active bool) {
 		h.Broadcast(newMessage(
 			"Subscription",
 			[]string{subscriptionTopic},
-			b,
+			string(b),
 		))
 	}
 }

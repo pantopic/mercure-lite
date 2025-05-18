@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,7 +12,6 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/valyala/fasthttp"
 	"github.com/yosida95/uritemplate"
 )
 
@@ -35,7 +33,7 @@ type server struct {
 	pubJwksRefresh time.Duration
 	pubKeys        []any
 	pubKeysJwks    []any
-	server         *fasthttp.Server
+	server         *http.Server
 	subJwksRefresh time.Duration
 	subKeys        []any
 	subKeysJwks    []any
@@ -76,12 +74,13 @@ func (s *server) Start(ctx context.Context) (err error) {
 	s.done = make(chan bool)
 	s.startJwksRefresh()
 	go s.hub.Run(s.ctx)
-	s.server = &fasthttp.Server{
-		Handler: s.handleFastHTTP,
+	s.server = &http.Server{
+		Addr:    s.cfg.LISTEN,
+		Handler: s,
 	}
 	go func() {
 		log.Printf("Starting server on %s", s.cfg.LISTEN)
-		if err := s.server.ListenAndServe(s.cfg.LISTEN); err != nil {
+		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Error in ListenAndServe: %s", err)
 		}
 	}()
@@ -103,71 +102,68 @@ func (s *server) Stop() {
 	close(s.done)
 	timeout, cancel := context.WithTimeout(s.ctx, time.Second)
 	defer cancel()
-	s.server.ShutdownWithContext(timeout)
+	s.server.Shutdown(timeout)
 	s.metrics.Stop()
 	s.ctxCancel()
 	s.ctx = nil
 }
 
-func (s *server) handleFastHTTP(ctx *fasthttp.RequestCtx) {
-	var (
-		uri  = ctx.Request.URI()
-		path = string(uri.Path())
-	)
-	if !strings.HasPrefix(path, "/.well-known/mercure") {
-		ctx.SetStatusCode(404)
+func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !strings.HasPrefix(r.URL.Path, "/.well-known/mercure") {
+		w.WriteHeader(404)
 		return
 	}
-	switch path {
+	switch r.URL.Path {
 	case "/.well-known/mercure":
-		switch strings.ToUpper(string(ctx.Method())) {
+		switch strings.ToUpper(r.Method) {
 		case "POST":
-			s.publish(ctx)
+			s.publish(w, r)
 		case "OPTIONS":
-			s.options(ctx)
+			s.options(w, r)
 		case "GET":
-			s.subscribe(ctx)
+			s.subscribe(w, r)
 		default:
-			ctx.SetStatusCode(405)
+			w.WriteHeader(405)
 		}
 	case "/.well-known/mercure/subscriptions":
-		switch strings.ToUpper(string(ctx.Method())) {
+		switch strings.ToUpper(r.Method) {
 		case "GET":
-			s.list(ctx)
+			s.list(w, r)
 		default:
-			ctx.SetStatusCode(405)
+			w.WriteHeader(405)
 		}
 	default:
-		ctx.SetStatusCode(404)
+		w.WriteHeader(404)
 	}
 }
 
-func (s *server) publish(ctx *fasthttp.RequestCtx) {
-	args := ctx.PostArgs()
+func (s *server) publish(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
 	msg := newMessage(
-		string(args.Peek("type")),
-		s.verifyPublish(ctx, argTopics(args)),
-		args.Peek("data"),
+		r.Form.Get("type"),
+		s.verifyPublish(r, r.Form["topic"]),
+		r.Form.Get("data"),
 	)
 	if len(msg.Topics) == 0 {
-		ctx.SetStatusCode(403)
+		w.WriteHeader(403)
 		return
 	}
 	s.hub.Broadcast(msg)
-	ctx.SetContentType("application/ld+json")
-	ctx.Write([]byte(msg.ID))
+	w.Header().Set("Content-Type", "application/ld+json")
+	w.Write([]byte(msg.ID))
 	s.metrics.Publish()
 }
 
-func (s *server) options(ctx *fasthttp.RequestCtx) {
-	ctx.Response.Header.Set("Access-Control-Allow-Origin", s.cfg.CORS_ORIGINS)
-	ctx.Response.Header.Set("Access-Control-Allow-Headers", "Authorization")
-	ctx.Response.Header.Set("Access-Control-Allow-Credentials", "true")
+func (s *server) options(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", s.cfg.CORS_ORIGINS)
+	w.Header().Set("Access-Control-Allow-Headers", "Authorization")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
 }
 
-func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
-	topics := argTopics(ctx.Request.URI().QueryArgs())
-	topics, jwtExpires := s.verifySubscribe(ctx, topics)
+func (s *server) subscribe(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	topics := r.Form["topic"]
+	topics, jwtExpires := s.verifySubscribe(r, topics)
 	if len(topics) < 1 {
 		return
 	}
@@ -177,58 +173,59 @@ func (s *server) subscribe(ctx *fasthttp.RequestCtx) {
 	topics, err := s.normalize(topics)
 	if err != nil {
 		log.Print(err)
-		ctx.SetStatusCode(400)
+		w.WriteHeader(400)
 		return
 	}
-	ctx.SetContentType("text/event-stream")
-	ctx.Response.Header.Set("Cache-Control", "no-cache")
-	ctx.Response.Header.Set("Connection", "keep-alive")
-	ctx.Response.Header.Set("Transfer-Encoding", "chunked")
-	ctx.Response.Header.Set("Access-Control-Allow-Origin", s.cfg.CORS_ORIGINS)
-	ctx.Response.Header.Set("Access-Control-Allow-Headers", "Authorization")
-	ctx.Response.Header.Set("Access-Control-Allow-Credentials", "true")
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Transfer-Encoding", "chunked")
+	w.Header().Set("Access-Control-Allow-Origin", s.cfg.CORS_ORIGINS)
+	w.Header().Set("Access-Control-Allow-Headers", "Authorization")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	if _, err := w.Write([]byte(":\n")); err != nil {
+		return
+	}
 	conn := newConnection(topics)
 	conn.Announce(s.hub, true)
 	s.hub.Register(conn)
-	ctx.SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
-		defer s.hub.Unregister(conn)
-		defer conn.Announce(s.hub, false)
-		defer s.metrics.Disconnect()
-		defer s.metrics.Unsubscribe(len(conn.topics))
-		w.Write([]byte(":\n"))
-		if err := w.Flush(); err != nil {
-			return
-		}
-		ping := time.NewTicker(pingPeriod)
-		defer ping.Stop()
-		var last string
-		for {
-			select {
-			case msg, ok := <-conn.send:
-				if !ok {
-					return
-				}
-				if msg.ID == last {
-					break
-				}
-				msg.WriteTo(w)
-				if err := w.Flush(); err != nil {
-					return
-				}
-				last = msg.ID
-				s.metrics.Send()
-			case <-ping.C:
-				w.Write([]byte(":\n"))
-				if err := w.Flush(); err != nil {
-					return
-				}
-			case <-s.clock.After(jwtExpires):
-				return
-			}
-		}
-	}))
+	defer s.hub.Unregister(conn)
+	defer conn.Announce(s.hub, false)
+	defer s.metrics.Disconnect()
+	defer s.metrics.Unsubscribe(len(conn.topics))
 	s.metrics.Connect()
 	s.metrics.Subscribe(len(conn.topics))
+	flush := w.(http.Flusher).Flush
+	flush()
+	ping := time.NewTicker(pingPeriod)
+	defer ping.Stop()
+	var last string
+	for {
+		select {
+		case msg, ok := <-conn.send:
+			if !ok {
+				return
+			}
+			if msg.ID == last {
+				break
+			}
+			if _, err := msg.WriteTo(w); err != nil {
+				return
+			}
+			flush()
+			last = msg.ID
+			s.metrics.Send()
+		case <-ping.C:
+			if _, err := w.Write([]byte(":\n")); err != nil {
+				return
+			}
+			flush()
+		case <-r.Context().Done():
+			return
+		case <-s.clock.After(jwtExpires):
+			return
+		}
+	}
 }
 
 func (s *server) normalize(topics []string) ([]string, error) {
@@ -244,8 +241,8 @@ func (s *server) normalize(topics []string) ([]string, error) {
 	return topics, nil
 }
 
-func (s *server) verifySubscribe(ctx *fasthttp.RequestCtx, topics []string) (res []string, jwtExpires time.Duration) {
-	claims := jwtTokenClaims(ctx, s.allSubKeys())
+func (s *server) verifySubscribe(r *http.Request, topics []string) (res []string, jwtExpires time.Duration) {
+	claims := jwtTokenClaims(r, s.allSubKeys())
 	if claims == nil {
 		return
 	}
@@ -260,8 +257,8 @@ func (s *server) verifySubscribe(ctx *fasthttp.RequestCtx, topics []string) (res
 	return
 }
 
-func (s *server) verifyPublish(ctx *fasthttp.RequestCtx, topics []string) (res []string) {
-	claims := jwtTokenClaims(ctx, s.allPubKeys())
+func (s *server) verifyPublish(r *http.Request, topics []string) (res []string) {
+	claims := jwtTokenClaims(r, s.allPubKeys())
 	if claims == nil {
 		return
 	}
@@ -274,8 +271,8 @@ func (s *server) verifyPublish(ctx *fasthttp.RequestCtx, topics []string) (res [
 	return
 }
 
-func (s *server) list(ctx *fasthttp.RequestCtx) {
-	ctx.SetContentType("application/ld+json")
+func (s *server) list(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/ld+json")
 	list := subscriptionList{
 		Context:     "github.com/pantopic/mercure-lite",
 		ID:          subscriptionTopic,
@@ -288,7 +285,7 @@ func (s *server) list(ctx *fasthttp.RequestCtx) {
 		}
 	}
 	b, _ := json.Marshal(list)
-	ctx.Write(b)
+	w.Write(b)
 }
 
 func (s *server) allPubKeys() []any {
