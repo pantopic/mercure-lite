@@ -115,10 +115,7 @@ func jwtTokenClaims(r *http.Request, keys []any, debug bool) *tokenClaims {
 			break
 		}
 	}
-	if token == nil {
-		return nil
-	}
-	if !token.Valid {
+	if token == nil || !token.Valid {
 		if debug {
 			log.Printf("Invalid token: %v: %s", err, tokenStr)
 		}
