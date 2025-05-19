@@ -144,7 +144,6 @@ func (s *server) publish(w http.ResponseWriter, r *http.Request) {
 		s.verifyPublish(r, r.Form["topic"]),
 		r.Form.Get("data"),
 	)
-	defer msg.release()
 	if len(msg.Topics) == 0 {
 		w.WriteHeader(403)
 		return
@@ -215,7 +214,6 @@ func (s *server) subscribe(w http.ResponseWriter, r *http.Request) {
 			}
 			flush()
 			last = msg.ID
-			msg.release()
 			s.metrics.Send()
 		case <-ping.C:
 			if _, err := w.Write([]byte(":\n")); err != nil {

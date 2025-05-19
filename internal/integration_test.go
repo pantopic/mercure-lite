@@ -388,6 +388,18 @@ func TestApi(t *testing.T) {
 		}
 		assert.Equal(t, 403, resp.StatusCode)
 	})
+	t.Run("query param auth", func(t *testing.T) {
+		req, _ := http.NewRequest("POST", target+"/.well-known/mercure?authorization="+pubJwtRS512, strings.NewReader(url.Values{
+			"data":  {"test-data"},
+			"topic": {"test"},
+		}.Encode()))
+		req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Fatalf("Publish error: %v", err)
+		}
+		assert.Equal(t, 200, resp.StatusCode)
+	})
 	t.Run("GET", func(t *testing.T) {
 		req, _ := http.NewRequest("GET", target+"/.well-known/mercure/subscriptions", nil)
 		req.Header.Add("Authorization", "Bearer "+subJwtRS512)
