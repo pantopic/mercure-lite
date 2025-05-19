@@ -451,7 +451,7 @@ func TestApi(t *testing.T) {
 		defer resp.Body.Close()
 		assert.Equal(t, 200, resp.StatusCode)
 		assert.Equal(t, "true", resp.Header.Get("access-control-allow-credentials"))
-		assert.Equal(t, "Authorization", resp.Header.Get("access-control-allow-headers"))
+		assert.Equal(t, "Authorization, Last-Event-ID, Cache-Control", resp.Header.Get("access-control-allow-headers"))
 		assert.Equal(t, "*", resp.Header.Get("access-control-allow-origin"))
 	})
 }
