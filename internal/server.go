@@ -150,14 +150,14 @@ func (s *server) publish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.hub.Broadcast(msg)
-	w.Header().Set("Content-Type", "application/ld+json")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write([]byte(msg.ID))
 	s.metrics.Publish()
 }
 
 func (s *server) options(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", s.cfg.CORS_ORIGINS)
-	w.Header().Set("Access-Control-Allow-Headers", "Authorization")
+	w.Header().Set("Access-Control-Allow-Headers", "Authorization, Last-Event-ID, Cache-Control")
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 }
 
