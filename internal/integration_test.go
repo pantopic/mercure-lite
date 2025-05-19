@@ -262,6 +262,7 @@ func testServer(cfg Config) *server {
 	cfg.LISTEN = ":8001"
 	cfg.CORS_ORIGINS = "*"
 	cfg.HUB_COUNT = 16
+	// cfg.DEBUG = true
 	return NewServer(cfg)
 }
 

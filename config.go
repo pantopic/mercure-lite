@@ -21,6 +21,9 @@ type Config struct {
 
 	// HUB_COUNT specifies to how many hubs messages should be sharded.
 	HUB_COUNT int `env:"HUB_COUNT" envDefault:"16"`
+
+	// DEBUG specifies whether to print invalid JWTs for investigation.
+	DEBUG bool `env:"DEBUG" envDefault:"false"`
 }
 
 // ConfigJWT specifies the JWT auth configuration for publishers and subscribers.

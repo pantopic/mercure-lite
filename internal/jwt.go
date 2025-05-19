@@ -88,7 +88,7 @@ type tokenClaims struct {
 	jwt.RegisteredClaims
 }
 
-func jwtTokenClaims(r *http.Request, keys []any) *tokenClaims {
+func jwtTokenClaims(r *http.Request, keys []any, debug bool) *tokenClaims {
 	tokenStr := r.Header.Get("Authorization")
 	if parts := strings.Split(tokenStr, " "); len(parts) == 2 {
 		tokenStr = parts[1]
@@ -116,7 +116,9 @@ func jwtTokenClaims(r *http.Request, keys []any) *tokenClaims {
 		}
 	}
 	if !token.Valid {
-		log.Printf("Invalid token: %v", err)
+		if debug {
+			log.Printf("Invalid token: %v: %s", err, tokenStr)
+		}
 		return nil
 	}
 	return token.Claims.(*tokenClaims)

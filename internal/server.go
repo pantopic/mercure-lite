@@ -244,7 +244,7 @@ func (s *server) normalize(topics []string) ([]string, error) {
 }
 
 func (s *server) verifySubscribe(r *http.Request, topics []string) (res []string, jwtExpires time.Duration) {
-	claims := jwtTokenClaims(r, s.allSubKeys())
+	claims := jwtTokenClaims(r, s.allSubKeys(), s.cfg.DEBUG)
 	if claims == nil {
 		return
 	}
@@ -261,7 +261,7 @@ func (s *server) verifySubscribe(r *http.Request, topics []string) (res []string
 }
 
 func (s *server) verifyPublish(r *http.Request, topics []string) (res []string) {
-	claims := jwtTokenClaims(r, s.allPubKeys())
+	claims := jwtTokenClaims(r, s.allPubKeys(), s.cfg.DEBUG)
 	if claims == nil {
 		return
 	}
