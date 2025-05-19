@@ -92,11 +92,15 @@ func jwtTokenClaims(r *http.Request, keys []any, debug bool) *tokenClaims {
 	tokenStr := r.Header.Get("Authorization")
 	if parts := strings.Split(tokenStr, " "); len(parts) == 2 {
 		tokenStr = parts[1]
-	} else {
+	}
+	if tokenStr == "" {
 		cookies := r.CookiesNamed("mercureAuthorization")
 		if len(cookies) > 0 {
 			tokenStr = cookies[0].Value
 		}
+	}
+	if tokenStr == "" {
+		tokenStr = r.Form.Get("authorization")
 	}
 	if tokenStr == "" {
 		return nil

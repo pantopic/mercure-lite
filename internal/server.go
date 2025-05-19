@@ -178,7 +178,7 @@ func (s *server) subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Cache-Control", "private, no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Transfer-Encoding", "chunked")
 	w.Header().Set("Access-Control-Allow-Origin", s.cfg.CORS_ORIGINS)
