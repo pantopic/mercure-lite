@@ -251,8 +251,9 @@ func (s *server) verifySubscribe(r *http.Request, topics []string) (res []string
 	if claims.RegisteredClaims.ExpiresAt != nil {
 		jwtExpires = s.clock.Until(claims.RegisteredClaims.ExpiresAt.Truncate(time.Second))
 	}
+	all := slices.Contains(claims.Mercure.Publish, "*")
 	for _, t := range topics {
-		if slices.Contains(claims.Mercure.Subscribe, t) {
+		if all || slices.Contains(claims.Mercure.Subscribe, t) {
 			res = append(res, t)
 		}
 	}
