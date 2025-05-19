@@ -13,7 +13,8 @@ This project implements 80% of the Mercure protocol in 20% as many lines of code
 
 ## Performance
 
-Mercure Lite performance is similar to Mercure for local transport at low concurrency.
+At low concurrency, Mercure Lite performance is similar to Mercure for local transport.
+
 ```bash
 # Mercure
 > make parity
@@ -30,9 +31,8 @@ Mercure Lite performance is similar to Mercure for local transport at low concur
 2025/05/18 11:10:47 10000 sent, 10000 received in 1.206347937s (8289.53 msgs/sec)
 ```
 
-Mercure Lite can significantly outperform Mercure at high concurrency.
+But at high concurrency, Mercure Lite can significantly outperform Mercure.
 
-This test uses Caddy running on a single AWS EC2 `c7i.xlarge` (4 cpu cores).
 ```bash
 # Mercure
 $ go run main.go -s 20000 -c 256 -n 50000 -target https://test.hky.me
@@ -49,7 +49,7 @@ $ go run main.go -s 20000 -c 256 -n 50000 -target https://test.hky.me
 2025/05/18 22:41:24 50000 sent, 50000 received in 21.572s (2317.80 msgs/sec)
 ```
 
-See [cmd/loadtest](cmd/loadtest/main.go) for specifics
+See [cmd/loadtest](cmd/loadtest/main.go) for specifics.
 
 ## Adoption
 
