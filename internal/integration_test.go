@@ -486,7 +486,7 @@ func TestSubscribe(t *testing.T) {
 	done1 := make(chan bool)
 	done2 := make(chan bool)
 	subEvents := make(chan sse.Event)
-	subUrl := target + "/.well-known/mercure?topic=/.well-known/mercure/subscriptions{/topic}{/subscriber}"
+	subUrl := target + "/.well-known/mercure?topic=%2F.well-known%2Fmercure%2Fsubscriptions%7B%2Ftopic%7D%7B%2Fsubscriber%7D"
 	sseClientStart(ctx2, subUrl, token, subEvents)
 	time.Sleep(50 * time.Millisecond)
 	var active bool
