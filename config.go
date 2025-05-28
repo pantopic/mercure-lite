@@ -22,6 +22,9 @@ type Config struct {
 	// HUB_COUNT specifies to how many hubs messages should be sharded.
 	HUB_COUNT int `env:"HUB_COUNT" envDefault:"16"`
 
+	// CACHE_SIZE_MB specifies the size of the message cache in megabytes
+	CACHE_SIZE_MB int `env:"CACHE_SIZE_MB" envDefault:"256"`
+
 	// DEBUG specifies whether to print invalid JWTs for investigation.
 	DEBUG bool `env:"DEBUG" envDefault:"false"`
 }

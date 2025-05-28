@@ -20,6 +20,7 @@ func newHubMulti(hubCount int, m *metrics) (h *hubMulti) {
 	}
 	return
 }
+
 func (h *hubMulti) Run(ctx context.Context) {
 	for _, h := range h.hubs {
 		go h.Run(ctx)

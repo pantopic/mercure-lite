@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/logbn/expset"
+	"github.com/logbn/mvfifo"
 	"github.com/yosida95/uritemplate"
 )
 
@@ -21,6 +23,7 @@ var (
 )
 
 type server struct {
+	cache          *mvfifo.Cache
 	cfg            Config
 	clock          clock.Clock
 	ctx            context.Context
@@ -33,6 +36,7 @@ type server struct {
 	pubJwksRefresh time.Duration
 	pubKeys        []any
 	pubKeysJwks    []any
+	recentTopics   *expset.Set[string]
 	server         *http.Server
 	subJwksRefresh time.Duration
 	subKeys        []any
@@ -45,11 +49,13 @@ func NewServer(cfg Config) *server {
 		m = NewMetrics(cfg.METRICS)
 	}
 	return &server{
-		cfg:        cfg,
-		clock:      clock.New(),
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		metrics:    m,
-		hub:        newHubMulti(cfg.HUB_COUNT, m),
+		cache:        mvfifo.NewCache(mvfifo.WithMaxSizeBytes(max(cfg.CACHE_SIZE_MB, 16) << 20)),
+		cfg:          cfg,
+		clock:        clock.New(),
+		httpClient:   &http.Client{Timeout: 5 * time.Second},
+		hub:          newHubMulti(cfg.HUB_COUNT, m),
+		metrics:      m,
+		recentTopics: expset.New[string](),
 	}
 }
 
@@ -148,6 +154,11 @@ func (s *server) publish(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(403)
 		return
 	}
+	for _, topic := range msg.Topics {
+		if s.recentTopics.Has(topic) {
+			s.cache.Add(topic, msg.timestamp(), msg.ToJson())
+		}
+	}
 	s.hub.Broadcast(msg)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write([]byte(msg.ID))
@@ -176,6 +187,9 @@ func (s *server) subscribe(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(400)
 		return
 	}
+	for _, topic := range topics {
+		s.recentTopics.Add(topic, time.Hour)
+	}
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "private, no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -183,6 +197,17 @@ func (s *server) subscribe(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", s.cfg.CORS_ORIGINS)
 	w.Header().Set("Access-Control-Allow-Headers", "Authorization")
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	lastEventID := r.Header.Get("Last-Event-ID")
+	lastEventCursor := msgIDtimestamp(lastEventID)
+	if lastEventCursor > 0 {
+		var msg = &message{}
+		for _, topic := range topics {
+			for _, data := range s.cache.IterAfter(topic, lastEventCursor) {
+				msg.FromJson(data)
+				msg.WriteTo(w)
+			}
+		}
+	}
 	if _, err := w.Write([]byte(":\n")); err != nil {
 		return
 	}
@@ -220,6 +245,9 @@ func (s *server) subscribe(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			flush()
+			for _, topic := range topics {
+				s.recentTopics.Add(topic, time.Hour)
+			}
 		case <-r.Context().Done():
 			return
 		case <-s.clock.After(jwtExpires):

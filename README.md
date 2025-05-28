@@ -82,7 +82,7 @@ test.hky.me {
   - [X] Test more failure scenarios (ie. malformed keys, tokens, etc)
 - `v0.x.x` - Beta
   - [ ] Add storage capabilities
-  - [ ] Add support for `last-event-id`
+  - [X] Add support for `last-event-id`
   - [ ] Distributed (multi-node) capabilities
 - `v1.x.x` - General Availability
 

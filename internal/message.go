@@ -1,62 +1,54 @@
 package internal
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
-	"sync"
-	"sync/atomic"
 )
-
-var messagePool = sync.Pool{
-	New: func() any {
-		return &message{
-			ID: uuidv7(),
-			n:  &atomic.Uint64{},
-		}
-	},
-}
 
 type message struct {
 	ID     string
 	Type   string
 	Topics []string
 	Data   string
-	n      *atomic.Uint64
 }
 
 func newMessage(msgType string, topics []string, data string) (m *message) {
-	m = messagePool.Get().(*message)
-	m.Type = msgType
-	m.Topics = topics
-	m.Data = data
-	return
+	return &message{
+		ID:     uuidv7(),
+		Type:   msgType,
+		Topics: topics,
+		Data:   data,
+	}
 }
 
-func (msg *message) WriteTo(w io.Writer) (n int64, err error) {
-	out := ""
+func (msg *message) WriteTo(w io.Writer) (in int64, err error) {
+	var out []byte
 	if len(msg.ID) > 0 {
-		out += fmt.Sprintf("id: %v\n", msg.ID)
+		out = fmt.Appendf(out, "id: %v\n", msg.ID)
 	}
 	if len(msg.Type) > 0 {
-		out += fmt.Sprintf("type: %v\n", msg.Type)
+		out = fmt.Appendf(out, "type: %v\n", msg.Type)
 	}
 	if len(msg.Data) > 0 {
-		out += fmt.Sprintf("data: %s\n", msg.Data)
+		out = fmt.Appendf(out, "data: %s\n", msg.Data)
 	}
 	if len(out) == 0 {
 		return
 	}
-	out += "\n"
-	if _, err = w.Write([]byte(out)); err != nil {
-		return
-	}
-	return int64(len(out)), nil
+	n, err := w.Write(append(out, []byte("\n")...))
+	return int64(n), err
 }
 
-func (msg *message) release() {
-	// msg must be released by both publisher and subscriber
-	if msg.n.Add(1)%2 == 0 {
-		msg.ID = uuidv7()
-		messagePool.Put(msg)
-	}
+func (msg *message) ToJson() (out []byte) {
+	out, _ = json.Marshal(msg)
+	return
+}
+
+func (msg *message) FromJson(in []byte) {
+	json.Unmarshal(in, msg)
+}
+
+func (msg *message) timestamp() uint64 {
+	return msgIDtimestamp(msg.ID)
 }

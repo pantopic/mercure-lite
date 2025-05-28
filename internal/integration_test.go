@@ -262,6 +262,7 @@ func testServer(cfg Config) *server {
 	cfg.LISTEN = ":8001"
 	cfg.CORS_ORIGINS = "*"
 	cfg.HUB_COUNT = 16
+	cfg.CACHE_SIZE_MB = 16
 	// cfg.DEBUG = true
 	return NewServer(cfg)
 }
@@ -277,7 +278,7 @@ func runIntegrationTest(t *testing.T, s *server, pubJwt, subJwt string, success 
 	done2 := make(chan bool)
 	subEvents := make(chan sse.Event)
 	subUrl := target + "/.well-known/mercure?topic=/.well-known/mercure/subscriptions{/topic}{/subscriber}"
-	sseClientStart(ctx2, subUrl, subJwt, subEvents)
+	sseClientStart(ctx2, subUrl, subJwt, subEvents, "")
 	time.Sleep(50 * time.Millisecond)
 	var active bool
 	var subEventCount = &atomic.Uint32{}
@@ -300,7 +301,7 @@ func runIntegrationTest(t *testing.T, s *server, pubJwt, subJwt string, success 
 	}()
 	events := make(chan sse.Event)
 	subUrl = target + "/.well-known/mercure?topic=test"
-	sseClientStart(ctx1, subUrl, subJwt, events)
+	sseClientStart(ctx1, subUrl, subJwt, events, "")
 	time.Sleep(10 * time.Millisecond)
 	var id, data string
 	go func() {
@@ -363,7 +364,7 @@ func TestApi(t *testing.T) {
 	for range 10 {
 		events := make(chan sse.Event)
 		subUrl := target + "/.well-known/mercure?topic=test"
-		sseClientStart(ctx, subUrl, subJwtRS512, events)
+		sseClientStart(ctx, subUrl, subJwtRS512, events, "")
 		go func() {
 			defer close(events)
 			for {
@@ -500,7 +501,7 @@ func TestSubscribe(t *testing.T) {
 	done2 := make(chan bool)
 	subEvents := make(chan sse.Event)
 	subUrl := target + "/.well-known/mercure?topic=%2F.well-known%2Fmercure%2Fsubscriptions%7B%2Ftopic%7D%7B%2Fsubscriber%7D"
-	sseClientStart(ctx2, subUrl, token, subEvents)
+	sseClientStart(ctx2, subUrl, token, subEvents, "")
 	time.Sleep(50 * time.Millisecond)
 	var active bool
 	var subEventCount = &atomic.Uint32{}
@@ -523,7 +524,7 @@ func TestSubscribe(t *testing.T) {
 	}()
 	events := make(chan sse.Event)
 	subUrl = target + "/.well-known/mercure?topic=test"
-	sseClientStart(ctx1, subUrl, subJwtHS256, events)
+	sseClientStart(ctx1, subUrl, subJwtHS256, events, "")
 	time.Sleep(10 * time.Millisecond)
 	var id, data string
 	go func() {
@@ -560,6 +561,105 @@ func TestSubscribe(t *testing.T) {
 	<-done2
 	assert.Equal(t, false, active)
 	assert.EqualValues(t, 2, subEventCount.Load())
+}
+
+func TestLastEventID(t *testing.T) {
+	if parity != "" {
+		return
+	}
+	time.Sleep(50 * time.Millisecond)
+	s := testServer(Config{
+		PUBLISHER:  ConfigJWT{JWT_ALG: "HS256", JWT_KEY: pubKeyHS256},
+		SUBSCRIBER: ConfigJWT{JWT_ALG: "HS256", JWT_KEY: subKeyHS256},
+	})
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	if err := s.Start(ctx); err != nil {
+		log.Fatal(err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	require.Nil(t, err)
+	if err := s.Start(t.Context()); err != nil {
+		log.Fatal(err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	ctx1, cancel1 := context.WithCancel(t.Context())
+	done1 := make(chan bool)
+	events := make(chan sse.Event)
+	subUrl := target + "/.well-known/mercure?topic=test"
+	sseClientStart(ctx1, subUrl, subJwtHS256, events, "")
+	time.Sleep(10 * time.Millisecond)
+	var id, data string
+	go func() {
+		for {
+			select {
+			case e := <-events:
+				id = string(e.LastEventID)
+				data = string(e.Data)
+				cancel1()
+			case <-ctx1.Done():
+				close(done1)
+				return
+			}
+		}
+	}()
+	req, _ := http.NewRequest("POST", target+"/.well-known/mercure", strings.NewReader(url.Values{
+		"data":  {"test-data"},
+		"topic": {"test"},
+	}.Encode()))
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Add("Cookie", "mercureAuthorization="+pubJwtHS256)
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatalf("Publish error: %v", err)
+	}
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalf("Publish error: %v", err)
+	}
+	assert.Equal(t, 200, resp.StatusCode)
+	last := string(respBody)
+	<-done1
+	assert.Equal(t, id, last)
+	assert.Equal(t, "test-data", data)
+	time.Sleep(10 * time.Millisecond)
+	req, _ = http.NewRequest("POST", target+"/.well-known/mercure", strings.NewReader(url.Values{
+		"data":  {"test-data"},
+		"topic": {"test"},
+	}.Encode()))
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Add("Cookie", "mercureAuthorization="+pubJwtHS256)
+	resp, err = client.Do(req)
+	if err != nil {
+		log.Fatalf("Publish error: %v", err)
+	}
+	respBody, err = io.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalf("Publish error: %v", err)
+	}
+	next := string(respBody)
+	time.Sleep(50 * time.Millisecond)
+	ctx1, cancel1 = context.WithCancel(t.Context())
+	done1 = make(chan bool)
+	events = make(chan sse.Event)
+	sseClientStart(ctx1, subUrl, subJwtHS256, events, last)
+	time.Sleep(10 * time.Millisecond)
+	go func() {
+		for {
+			select {
+			case e := <-events:
+				id = string(e.LastEventID)
+				data = string(e.Data)
+				cancel1()
+			case <-ctx1.Done():
+				close(done1)
+				return
+			}
+		}
+	}()
+	<-done1
+	assert.Equal(t, id, next)
+	assert.Equal(t, "test-data", data)
 }
 
 func TestMetrics(t *testing.T) {
@@ -723,12 +823,15 @@ func (f RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
-func sseClientStart(ctx context.Context, url, jwt string, events chan sse.Event) {
+func sseClientStart(ctx context.Context, url, jwt string, events chan sse.Event, lastEventID string) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 	req.Header.Set("Authorization", "Bearer "+jwt)
+	if len(lastEventID) > 0 {
+		req.Header.Add("Last-Event-ID", lastEventID)
+	}
 	conn := sse.NewConnection(req)
 	go func() {
 		if err := conn.Connect(); err != nil && err != context.Canceled {
