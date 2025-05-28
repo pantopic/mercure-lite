@@ -670,6 +670,7 @@ func TestMetrics(t *testing.T) {
 	})
 	defer s.Stop()
 	runIntegrationTest(t, s, pubJwtPS384, subJwtPS384, true)
+	time.Sleep(time.Second)
 	t.Run("GET", func(t *testing.T) {
 		req, _ := http.NewRequest("GET", "http://localhost:9090/metrics", nil)
 		resp, err := client.Do(req)
@@ -688,6 +689,12 @@ func TestMetrics(t *testing.T) {
 		assert.Contains(t, body, "mercure_lite_messages_sent 3") // Subscribe, message, unsubscribe
 		assert.Contains(t, body, "mercure_lite_subscriptions_total 2")
 		assert.Contains(t, body, "mercure_lite_connections_terminated 0")
+		assert.Contains(t, body, "mercure_lite_message_cache_count")
+		assert.NotContains(t, body, "mercure_lite_message_cache_count 0")
+		assert.Contains(t, body, "mercure_lite_message_cache_size")
+		assert.NotContains(t, body, "mercure_lite_message_cache_size 0")
+		assert.Contains(t, body, "mercure_lite_message_cache_age")
+		assert.NotContains(t, body, "mercure_lite_message_cache_age 0")
 	})
 }
 

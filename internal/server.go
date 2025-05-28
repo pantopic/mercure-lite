@@ -44,12 +44,13 @@ type server struct {
 }
 
 func NewServer(cfg Config) *server {
+	var cache = mvfifo.NewCache(mvfifo.WithMaxSizeBytes(max(cfg.CACHE_SIZE_MB, 16) << 20))
 	var m *metrics
 	if len(cfg.METRICS) > 0 {
-		m = NewMetrics(cfg.METRICS)
+		m = NewMetrics(cfg.METRICS, cache)
 	}
 	return &server{
-		cache:        mvfifo.NewCache(mvfifo.WithMaxSizeBytes(max(cfg.CACHE_SIZE_MB, 16) << 20)),
+		cache:        cache,
 		cfg:          cfg,
 		clock:        clock.New(),
 		httpClient:   &http.Client{Timeout: 5 * time.Second},

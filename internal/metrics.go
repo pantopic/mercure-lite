@@ -4,28 +4,34 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"time"
 
+	"github.com/logbn/mvfifo"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type metrics struct {
+	cache  *mvfifo.Cache
 	ctx    context.Context
 	listen string
 	server *http.Server
 
 	connections_active     prometheus.Gauge
-	connections_total      prometheus.Counter
 	connections_terminated prometheus.Counter
-	subscriptions_active   prometheus.Gauge
-	subscriptions_total    prometheus.Counter
+	connections_total      prometheus.Counter
+	message_cache_age      prometheus.Gauge
+	message_cache_count    prometheus.Gauge
+	message_cache_size     prometheus.Gauge
 	messages_published     prometheus.Counter
 	messages_sent          prometheus.Counter
+	subscriptions_active   prometheus.Gauge
+	subscriptions_total    prometheus.Counter
 }
 
-func NewMetrics(listen string) *metrics {
-	return &metrics{listen: listen}
+func NewMetrics(listen string, cache *mvfifo.Cache) *metrics {
+	return &metrics{listen: listen, cache: cache}
 }
 
 func (m *metrics) Start(ctx context.Context) {
@@ -44,9 +50,17 @@ func (m *metrics) Start(ctx context.Context) {
 		}
 	}()
 	go func() {
+		t := time.NewTicker(time.Second)
+		defer t.Stop()
 		select {
+		case <-t.C:
+			cur, _ := m.cache.First()
+			m.message_cache_age.Set(float64((cur*100 - uint64(time.Now().UnixNano())) / uint64(time.Second)))
+			m.message_cache_count.Set(float64(m.cache.Len()))
+			m.message_cache_size.Set(float64(m.cache.Size()))
 		case <-ctx.Done():
 			m.Stop()
+			return
 		}
 	}()
 }
@@ -107,13 +121,17 @@ func (m *metrics) init() {
 		Name: "mercure_lite_connections_terminated",
 		Help: "Total number of connections terminated",
 	})
-	m.subscriptions_active = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "mercure_lite_subscriptions_active",
-		Help: "Number of active subsriptions",
+	m.message_cache_age = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "mercure_lite_message_cache_age",
+		Help: "Age of oldest message in the cache",
 	})
-	m.subscriptions_total = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "mercure_lite_subscriptions_total",
-		Help: "Total number of subscriptions created",
+	m.message_cache_count = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "mercure_lite_message_cache_count",
+		Help: "Number of messages presently stored in the cache",
+	})
+	m.message_cache_size = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "mercure_lite_message_cache_size",
+		Help: "Number of bytes presently stored in the cache",
 	})
 	m.messages_published = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "mercure_lite_messages_published",
@@ -122,5 +140,13 @@ func (m *metrics) init() {
 	m.messages_sent = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "mercure_lite_messages_sent",
 		Help: "Total number of messages sent",
+	})
+	m.subscriptions_active = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "mercure_lite_subscriptions_active",
+		Help: "Number of active subsriptions",
+	})
+	m.subscriptions_total = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "mercure_lite_subscriptions_total",
+		Help: "Total number of subscriptions created",
 	})
 }
