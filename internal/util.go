@@ -19,10 +19,10 @@ func uuidv7() string {
 }
 
 func msgIDtimestamp(id string) uint64 {
-	if len(id) == 0 {
+	if len(id) != 45 {
 		return 0
 	}
-	u, err := uuid.FromString(id)
+	u, err := uuid.FromString(id[9:])
 	if err != nil {
 		return 0
 	}
