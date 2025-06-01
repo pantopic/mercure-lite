@@ -52,15 +52,17 @@ func (m *metrics) Start(ctx context.Context) {
 	go func() {
 		t := time.NewTicker(time.Second)
 		defer t.Stop()
-		select {
-		case <-t.C:
-			cur, _ := m.cache.First()
-			m.message_cache_age.Set(float64((cur*100 - uint64(time.Now().UnixNano())) / uint64(time.Second)))
-			m.message_cache_count.Set(float64(m.cache.Len()))
-			m.message_cache_size.Set(float64(m.cache.Size()))
-		case <-ctx.Done():
-			m.Stop()
-			return
+		for {
+			select {
+			case <-t.C:
+				cur, _ := m.cache.First()
+				m.message_cache_age.Set(float64((cur*100 - uint64(time.Now().UnixNano())) / uint64(time.Second)))
+				m.message_cache_count.Set(float64(m.cache.Len()))
+				m.message_cache_size.Set(float64(m.cache.Size()))
+			case <-ctx.Done():
+				m.Stop()
+				return
+			}
 		}
 	}()
 }
