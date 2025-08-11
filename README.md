@@ -76,6 +76,8 @@ test.hky.me {
 
 ## Roadmap
 
+This project is in `Beta`. The API is stable. Only new capabilities should be expected.
+
 - `v0.0.x` - Alpha
   - [X] Add support for more (all) JWT key algorithms
   - [X] Close connections made with tokens that expire while connection is open

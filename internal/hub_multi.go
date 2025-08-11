@@ -25,28 +25,24 @@ func (h *hubMulti) Run(ctx context.Context) {
 	for _, h := range h.hubs {
 		go h.Run(ctx)
 	}
-	return
 }
 
 func (h *hubMulti) Register(c *connection) {
 	for _, topic := range c.topics {
 		h.hubs[h.hash(topic)].Register(c)
 	}
-	return
 }
 
 func (h *hubMulti) Unregister(c *connection) {
 	for _, topic := range c.topics {
 		h.hubs[h.hash(topic)].Unregister(c)
 	}
-	return
 }
 
 func (h *hubMulti) Broadcast(m *message) {
 	for _, topic := range m.Topics {
 		h.hubs[h.hash(topic)].Broadcast(m)
 	}
-	return
 }
 
 func (h *hubMulti) Connections() map[*connection]bool {
